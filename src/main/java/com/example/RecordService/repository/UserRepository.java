@@ -1,17 +1,17 @@
 package com.example.RecordService.repository;
 
 import com.example.RecordService.model.User;
-import java.util.List;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
 
-public interface UserRepository {
-    User save(User user);
-    User findByPhoneNumber(String phoneNumber);
-    User findByEmail(String email);
-    List<User> findAll();
+import java.util.List;
+import java.util.Optional;
+
+@Repository
+public interface UserRepository extends JpaRepository<User, String> {
+    Optional<User> findByPhoneNumber(String phoneNumber);
+    Optional<User> findByEmail(String email);
     List<User> findByUserType(User.UserType userType);
     boolean existsByPhoneNumber(String phoneNumber);
     boolean existsByEmail(String email);
-    User update(User user);
-    boolean delete(String phoneNumber);
-    long count();
 }

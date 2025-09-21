@@ -1,64 +1,23 @@
-# Compiled class file
-*.class
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# Log file
-*.log
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
 
-# BlueJ files
-*.ctxt
+# testing
+/coverage
 
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
+# production
+/build
 
-# Package Files
-*.jar
-*.war
-*.nar
-*.ear
-*.zip
-*.tar.gz
-*.rar
-
-# Virtual machine crash logs
-hs_err_pid*
-replay_pid*
-
-# Maven
-target/
-pom.xml.tag
-pom.xml.releaseBackup
-pom.xml.versionsBackup
-pom.xml.next
-release.properties
-dependency-reduced-pom.xml
-buildNumber.properties
-.mvn/timing.properties
-.mvn/wrapper/maven-wrapper.jar
-
-# IDE
-.idea/
-*.iws
-*.iml
-*.ipr
-.vscode/
-.settings/
-.project
-.classpath
-
-# OS
+# misc
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
-# Spring Boot
-*.log
-application-*.properties
-!application.properties
-
-# Test files (optional - you can remove this if you want to keep test scripts)
-# test-api.bat
-# test-complete-system.bat
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

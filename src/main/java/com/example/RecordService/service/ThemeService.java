@@ -1,17 +1,28 @@
 package com.example.RecordService.service;
 
+import com.example.RecordService.model.Business;
 import com.example.RecordService.model.Theme;
+import com.example.RecordService.model.dto.BusinessThemesResponse;
+import com.example.RecordService.model.dto.BusinessThemeSummary;
+import com.example.RecordService.model.dto.ThemeSummary;
+import com.example.RecordService.repository.BusinessRepository;
 import com.example.RecordService.repository.ThemeRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class ThemeService {
     
     @Autowired
     private ThemeRepository themeRepository;
+    
+    @Autowired
+    private BusinessRepository businessRepository;
     
     /**
      * Save a new theme
@@ -99,5 +110,47 @@ public class ThemeService {
      */
     public long getThemeCount() {
         return themeRepository.count();
+    }
+
+    /**
+     * Return all businesses with their associated themes, grouped and sorted by business name
+     */
+    public List<BusinessThemesResponse> getThemesGroupedByBusiness() {
+        List<Business> businesses = businessRepository.findAll();
+        // ensure themes list is not null on Business model
+        List<BusinessThemesResponse> result = new ArrayList<>();
+        for (Business business : businesses) {
+            List<Theme> themes = themeRepository.findByBusinessId(business.getBusinessId());
+            // sort themes by name for stable output
+            List<Theme> sortedThemes = themes.stream()
+                    .sorted(Comparator.comparing(Theme::getThemeName, Comparator.nullsLast(String::compareToIgnoreCase)))
+                    .collect(Collectors.toList());
+            BusinessThemesResponse dto = new BusinessThemesResponse(business, sortedThemes);
+            result.add(dto);
+        }
+        // sort businesses by name
+        result.sort(Comparator.comparing(
+                b -> b.getBusiness().getBusinessName(),
+                Comparator.nullsLast(String::compareToIgnoreCase)
+        ));
+        return result;
+    }
+
+    /**
+     * Return minimal view: business name and themes (id + name) only
+     */
+    public List<BusinessThemeSummary> getThemesByBusinessSummary() {
+        List<Business> businesses = businessRepository.findAll();
+        List<BusinessThemeSummary> result = new ArrayList<>();
+        for (Business business : businesses) {
+            List<Theme> themes = themeRepository.findByBusinessId(business.getBusinessId());
+            List<ThemeSummary> themeSummaries = themes.stream()
+                    .sorted(Comparator.comparing(Theme::getThemeName, Comparator.nullsLast(String::compareToIgnoreCase)))
+                    .map(t -> new ThemeSummary(t.getThemeId(), t.getThemeName()))
+                    .collect(Collectors.toList());
+            result.add(new BusinessThemeSummary(business.getBusinessId(), business.getBusinessName(), themeSummaries));
+        }
+        result.sort(Comparator.comparing(BusinessThemeSummary::getBusinessName, Comparator.nullsLast(String::compareToIgnoreCase)));
+        return result;
     }
 }

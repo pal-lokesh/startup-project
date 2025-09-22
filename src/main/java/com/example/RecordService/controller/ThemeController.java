@@ -1,6 +1,8 @@
 package com.example.RecordService.controller;
 
 import com.example.RecordService.model.Theme;
+import com.example.RecordService.model.dto.BusinessThemesResponse;
+import com.example.RecordService.model.dto.BusinessThemeSummary;
 import com.example.RecordService.service.ThemeService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -54,6 +56,24 @@ public class ThemeController {
     public ResponseEntity<List<Theme>> getAllThemes() {
         List<Theme> themes = themeService.getAllThemes();
         return ResponseEntity.ok(themes);
+    }
+    
+    /**
+     * GET endpoint to retrieve all businesses with their themes, grouped by business
+     */
+    @GetMapping("/by-business")
+    public ResponseEntity<List<BusinessThemesResponse>> getThemesByBusinessGrouping() {
+        List<BusinessThemesResponse> grouped = themeService.getThemesGroupedByBusiness();
+        return ResponseEntity.ok(grouped);
+    }
+    
+    /**
+     * GET endpoint to retrieve minimal view: business name with themes (id and name only)
+     */
+    @GetMapping("/by-business/summary")
+    public ResponseEntity<List<BusinessThemeSummary>> getThemesByBusinessSummary() {
+        List<BusinessThemeSummary> grouped = themeService.getThemesByBusinessSummary();
+        return ResponseEntity.ok(grouped);
     }
     
     /**

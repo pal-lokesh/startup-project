@@ -36,7 +36,7 @@ public class UserService {
      * @return the user if found, null otherwise
      */
     public User getUserByPhoneNumber(String phoneNumber) {
-        return userRepository.findByPhoneNumber(phoneNumber);
+        return userRepository.findByPhoneNumber(phoneNumber).orElse(null);
     }
     
     /**
@@ -45,7 +45,7 @@ public class UserService {
      * @return the user if found, null otherwise
      */
     public User getUserByEmail(String email) {
-        return userRepository.findByEmail(email);
+        return userRepository.findByEmail(email).orElse(null);
     }
     
     /**
@@ -81,7 +81,7 @@ public class UserService {
      * @return the updated user
      */
     public User updateUser(User user) {
-        return userRepository.update(user);
+        return userRepository.save(user);
     }
     
     /**
@@ -90,7 +90,11 @@ public class UserService {
      * @return true if user was deleted, false if not found
      */
     public boolean deleteUser(String phoneNumber) {
-        return userRepository.delete(phoneNumber);
+        if (userRepository.existsByPhoneNumber(phoneNumber)) {
+            userRepository.deleteById(phoneNumber);
+            return true;
+        }
+        return false;
     }
     
     /**

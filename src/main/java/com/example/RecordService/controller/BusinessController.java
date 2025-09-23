@@ -36,12 +36,7 @@ public class BusinessController {
                 return ResponseEntity.badRequest().build();
             }
             
-            // Check if business already exists with this phone number
-            if (businessService.businessExistsByPhoneNumber(business.getPhoneNumber())) {
-                return ResponseEntity.status(HttpStatus.CONFLICT).build();
-            }
-            
-            // Save the business
+            // Save the business (multiple businesses per vendor are now allowed)
             Business savedBusiness = businessService.saveBusiness(business);
             
             return ResponseEntity.status(HttpStatus.CREATED).body(savedBusiness);
@@ -157,5 +152,16 @@ public class BusinessController {
     public ResponseEntity<Long> getBusinessCount() {
         long count = businessService.getBusinessCount();
         return ResponseEntity.ok(count);
+    }
+    
+    /**
+     * GET endpoint to retrieve all businesses for a vendor by phone number
+     * @param phoneNumber the vendor's phone number
+     * @return ResponseEntity with list of businesses for the vendor
+     */
+    @GetMapping("/vendor/{phoneNumber}")
+    public ResponseEntity<List<Business>> getBusinessesByVendorPhoneNumber(@PathVariable String phoneNumber) {
+        List<Business> businesses = businessService.getBusinessesByVendorPhoneNumber(phoneNumber);
+        return ResponseEntity.ok(businesses);
     }
 }

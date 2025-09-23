@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
 import java.util.List;
 
@@ -70,6 +71,18 @@ public class UserController {
     public ResponseEntity<List<User>> getAllUsers() {
         List<User> users = userService.getAllUsers();
         return ResponseEntity.ok(users);
+    }
+
+    /**
+     * GET endpoint to retrieve the current authenticated user's information
+     */
+    @GetMapping("/me")
+    public ResponseEntity<User> getMe(@AuthenticationPrincipal User principal) {
+        if (principal == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        User me = userService.getUserByPhoneNumber(principal.getPhoneNumber());
+        return me != null ? ResponseEntity.ok(me) : ResponseEntity.notFound().build();
     }
     
     /**

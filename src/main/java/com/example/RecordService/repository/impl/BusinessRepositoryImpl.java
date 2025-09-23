@@ -24,7 +24,8 @@ public class BusinessRepositoryImpl implements BusinessRepository {
         }
         business.setUpdatedAt(java.time.LocalDateTime.now());
         businesses.put(business.getBusinessId(), business);
-        businessesByPhone.put(business.getPhoneNumber(), business);
+        // Note: businessesByPhone is not updated here to support multiple businesses per vendor
+        // Use findByVendorPhoneNumber() instead of findByPhoneNumber() for multiple businesses
         return business;
     }
     
@@ -58,6 +59,13 @@ public class BusinessRepositoryImpl implements BusinessRepository {
     }
     
     @Override
+    public List<Business> findByVendorPhoneNumber(String phoneNumber) {
+        return businesses.values().stream()
+                .filter(business -> business.getPhoneNumber().equals(phoneNumber))
+                .collect(java.util.stream.Collectors.toList());
+    }
+    
+    @Override
     public boolean existsByBusinessId(String businessId) {
         return businesses.containsKey(businessId);
     }
@@ -71,7 +79,7 @@ public class BusinessRepositoryImpl implements BusinessRepository {
     public Business update(Business business) {
         business.setUpdatedAt(java.time.LocalDateTime.now());
         businesses.put(business.getBusinessId(), business);
-        businessesByPhone.put(business.getPhoneNumber(), business);
+        // Note: businessesByPhone is not updated here to support multiple businesses per vendor
         return business;
     }
     
@@ -79,7 +87,7 @@ public class BusinessRepositoryImpl implements BusinessRepository {
     public boolean delete(String businessId) {
         Business business = businesses.remove(businessId);
         if (business != null) {
-            businessesByPhone.remove(business.getPhoneNumber());
+            // Note: Not removing from businessesByPhone to avoid affecting other businesses with same phone
             return true;
         }
         return false;

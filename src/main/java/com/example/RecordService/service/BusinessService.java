@@ -109,4 +109,13 @@ public class BusinessService {
     public long getBusinessCount() {
         return businessRepository.count();
     }
+    
+    /**
+     * Get all businesses for a vendor by phone number
+     * @param phoneNumber the vendor's phone number
+     * @return list of businesses for the vendor
+     */
+    public List<Business> getBusinessesByVendorPhoneNumber(String phoneNumber) {
+        return businessRepository.findByVendorPhoneNumber(phoneNumber);
+    }
 }

@@ -10,6 +10,7 @@ public interface BusinessRepository {
     List<Business> findAll();
     List<Business> findByCategory(String category);
     List<Business> findByActive(boolean active);
+    List<Business> findByVendorPhoneNumber(String phoneNumber);
     boolean existsByBusinessId(String businessId);
     boolean existsByPhoneNumber(String phoneNumber);
     Business update(Business business);

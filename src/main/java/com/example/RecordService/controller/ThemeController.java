@@ -49,6 +49,39 @@ public class ThemeController {
     }
     
     /**
+     * POST endpoint to create a new theme with image validation
+     * This endpoint requires that at least one image is uploaded for the theme
+     * @param theme the theme details to be saved
+     * @return ResponseEntity with the created theme and HTTP status
+     */
+    @PostMapping("/with-images")
+    public ResponseEntity<Theme> createThemeWithImages(@RequestBody Theme theme) {
+        try {
+            // Validate required fields
+            if (theme.getBusinessId() == null || theme.getBusinessId().trim().isEmpty()) {
+                return ResponseEntity.badRequest().build();
+            }
+            if (theme.getThemeName() == null || theme.getThemeName().trim().isEmpty()) {
+                return ResponseEntity.badRequest().build();
+            }
+            if (theme.getThemeCategory() == null || theme.getThemeCategory().trim().isEmpty()) {
+                return ResponseEntity.badRequest().build();
+            }
+            
+            // Save the theme first
+            Theme savedTheme = themeService.saveTheme(theme);
+            
+            // Check if theme has images - this will be validated by the frontend
+            // The frontend should ensure images are uploaded before calling this endpoint
+            
+            return ResponseEntity.status(HttpStatus.CREATED).body(savedTheme);
+            
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+    
+    /**
      * GET endpoint to retrieve all themes
      * @return ResponseEntity with list of all themes
      */

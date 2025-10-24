@@ -52,6 +52,55 @@ public class PlateController {
     @PostMapping
     public ResponseEntity<Plate> createPlate(@RequestBody Plate plate) {
         try {
+            // Validate required fields
+            if (plate.getBusinessId() == null || plate.getBusinessId().trim().isEmpty()) {
+                return ResponseEntity.badRequest().build();
+            }
+            if (plate.getDishName() == null || plate.getDishName().trim().isEmpty()) {
+                return ResponseEntity.badRequest().build();
+            }
+            if (plate.getDishDescription() == null || plate.getDishDescription().trim().isEmpty()) {
+                return ResponseEntity.badRequest().build();
+            }
+            if (plate.getPrice() == null || plate.getPrice() <= 0) {
+                return ResponseEntity.badRequest().build();
+            }
+            
+            Plate createdPlate = plateService.createPlate(plate);
+            return ResponseEntity.status(HttpStatus.CREATED).body(createdPlate);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+    
+    /**
+     * POST endpoint to create a new plate with image validation
+     * This endpoint requires that an image is uploaded for the plate
+     * @param plate the plate details to be saved
+     * @return ResponseEntity with the created plate and HTTP status
+     */
+    @PostMapping("/with-image")
+    public ResponseEntity<Plate> createPlateWithImage(@RequestBody Plate plate) {
+        try {
+            // Validate required fields
+            if (plate.getBusinessId() == null || plate.getBusinessId().trim().isEmpty()) {
+                return ResponseEntity.badRequest().build();
+            }
+            if (plate.getDishName() == null || plate.getDishName().trim().isEmpty()) {
+                return ResponseEntity.badRequest().build();
+            }
+            if (plate.getDishDescription() == null || plate.getDishDescription().trim().isEmpty()) {
+                return ResponseEntity.badRequest().build();
+            }
+            if (plate.getPrice() == null || plate.getPrice() <= 0) {
+                return ResponseEntity.badRequest().build();
+            }
+            
+            // Validate that plate has an image
+            if (plate.getPlateImage() == null || plate.getPlateImage().trim().isEmpty()) {
+                return ResponseEntity.badRequest().build();
+            }
+            
             Plate createdPlate = plateService.createPlate(plate);
             return ResponseEntity.status(HttpStatus.CREATED).body(createdPlate);
         } catch (Exception e) {

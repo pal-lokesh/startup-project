@@ -14,7 +14,6 @@ import java.util.concurrent.atomic.AtomicLong;
 public class ThemeRepositoryImpl implements ThemeRepository {
     
     private static final Map<String, Theme> themes = new ConcurrentHashMap<>();
-    private static final Map<String, List<Theme>> themesByBusiness = new ConcurrentHashMap<>();
     private static final AtomicLong idCounter = new AtomicLong(1);
     
     @Override
@@ -22,12 +21,7 @@ public class ThemeRepositoryImpl implements ThemeRepository {
         if (theme.getThemeId() == null) {
             theme.setThemeId("THEME_" + idCounter.getAndIncrement());
         }
-        theme.setUpdatedAt(java.time.LocalDateTime.now());
         themes.put(theme.getThemeId(), theme);
-        
-        // Update business themes mapping
-        themesByBusiness.computeIfAbsent(theme.getBusinessId(), k -> new ArrayList<>()).add(theme);
-        
         return theme;
     }
     
@@ -37,13 +31,15 @@ public class ThemeRepositoryImpl implements ThemeRepository {
     }
     
     @Override
-    public List<Theme> findByBusinessId(String businessId) {
-        return themesByBusiness.getOrDefault(businessId, new ArrayList<>());
+    public List<Theme> findAll() {
+        return new ArrayList<>(themes.values());
     }
     
     @Override
-    public List<Theme> findAll() {
-        return new ArrayList<>(themes.values());
+    public List<Theme> findByBusinessId(String businessId) {
+        return themes.values().stream()
+                .filter(theme -> theme.getBusinessId().equals(businessId))
+                .collect(java.util.stream.Collectors.toList());
     }
     
     @Override
@@ -67,22 +63,14 @@ public class ThemeRepositoryImpl implements ThemeRepository {
     
     @Override
     public Theme update(Theme theme) {
-        theme.setUpdatedAt(java.time.LocalDateTime.now());
         themes.put(theme.getThemeId(), theme);
         return theme;
     }
     
     @Override
     public boolean delete(String themeId) {
-        Theme theme = themes.remove(themeId);
-        if (theme != null) {
-            List<Theme> businessThemes = themesByBusiness.get(theme.getBusinessId());
-            if (businessThemes != null) {
-                businessThemes.removeIf(t -> t.getThemeId().equals(themeId));
-            }
-            return true;
-        }
-        return false;
+        Theme removed = themes.remove(themeId);
+        return removed != null;
     }
     
     @Override

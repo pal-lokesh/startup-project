@@ -59,6 +59,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/public/**").permitAll()
+                .requestMatchers("/api/test/**").permitAll()
                 .requestMatchers("/actuator/**").permitAll()
                 .requestMatchers("/api/users/count").permitAll()
                 .requestMatchers("/api/businesses/count").permitAll()
@@ -74,6 +75,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/inventory/business/**").authenticated()
                 .requestMatchers("/api/inventory/images/**").authenticated()
                 .requestMatchers("/api/plates/business/**").authenticated()
+                .requestMatchers("/api/orders/**").authenticated()
                 .requestMatchers("/api/users/**").hasRole("ADMIN")
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/vendor/**").hasAnyRole("VENDOR_ADMIN", "ADMIN")

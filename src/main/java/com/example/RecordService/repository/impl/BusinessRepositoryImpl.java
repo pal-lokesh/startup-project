@@ -14,7 +14,6 @@ import java.util.concurrent.atomic.AtomicLong;
 public class BusinessRepositoryImpl implements BusinessRepository {
     
     private static final Map<String, Business> businesses = new ConcurrentHashMap<>();
-    private static final Map<String, Business> businessesByPhone = new ConcurrentHashMap<>();
     private static final AtomicLong idCounter = new AtomicLong(1);
     
     @Override
@@ -22,10 +21,7 @@ public class BusinessRepositoryImpl implements BusinessRepository {
         if (business.getBusinessId() == null) {
             business.setBusinessId("BUSINESS_" + idCounter.getAndIncrement());
         }
-        business.setUpdatedAt(java.time.LocalDateTime.now());
         businesses.put(business.getBusinessId(), business);
-        // Note: businessesByPhone is not updated here to support multiple businesses per vendor
-        // Use findByVendorPhoneNumber() instead of findByPhoneNumber() for multiple businesses
         return business;
     }
     
@@ -36,7 +32,10 @@ public class BusinessRepositoryImpl implements BusinessRepository {
     
     @Override
     public Business findByPhoneNumber(String phoneNumber) {
-        return businessesByPhone.get(phoneNumber);
+        return businesses.values().stream()
+                .filter(business -> business.getPhoneNumber().equals(phoneNumber))
+                .findFirst()
+                .orElse(null);
     }
     
     @Override
@@ -72,25 +71,20 @@ public class BusinessRepositoryImpl implements BusinessRepository {
     
     @Override
     public boolean existsByPhoneNumber(String phoneNumber) {
-        return businessesByPhone.containsKey(phoneNumber);
+        return businesses.values().stream()
+                .anyMatch(business -> business.getPhoneNumber().equals(phoneNumber));
     }
     
     @Override
     public Business update(Business business) {
-        business.setUpdatedAt(java.time.LocalDateTime.now());
         businesses.put(business.getBusinessId(), business);
-        // Note: businessesByPhone is not updated here to support multiple businesses per vendor
         return business;
     }
     
     @Override
     public boolean delete(String businessId) {
-        Business business = businesses.remove(businessId);
-        if (business != null) {
-            // Note: Not removing from businessesByPhone to avoid affecting other businesses with same phone
-            return true;
-        }
-        return false;
+        Business removed = businesses.remove(businessId);
+        return removed != null;
     }
     
     @Override

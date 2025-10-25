@@ -19,7 +19,8 @@ public class InventoryService {
     }
 
     public Optional<Inventory> getInventoryById(String inventoryId) {
-        return inventoryRepository.findById(inventoryId);
+        Inventory inventory = inventoryRepository.findByInventoryId(inventoryId);
+        return Optional.ofNullable(inventory);
     }
 
     public List<Inventory> getAllInventories() {

@@ -4,12 +4,16 @@ import com.example.RecordService.model.Theme;
 import com.example.RecordService.model.dto.BusinessThemesResponse;
 import com.example.RecordService.model.dto.BusinessThemeSummary;
 import com.example.RecordService.service.ThemeService;
+import com.example.RecordService.service.BusinessService;
+import com.example.RecordService.service.UserService;
+import com.example.RecordService.model.User;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/themes")
@@ -19,13 +23,25 @@ public class ThemeController {
     @Autowired
     private ThemeService themeService;
     
+    @Autowired
+    private BusinessService businessService;
+    
+    @Autowired
+    private UserService userService;
+    
+    @Autowired
+    private com.example.RecordService.service.AuthorizationService authorizationService;
+    
     /**
      * POST endpoint to create a new theme
      * @param theme the theme details to be saved
+     * @param vendorPhone the vendor's phone number from header (for authorization)
      * @return ResponseEntity with the created theme and HTTP status
      */
     @PostMapping
-    public ResponseEntity<Theme> createTheme(@RequestBody Theme theme) {
+    public ResponseEntity<?> createTheme(
+            @RequestBody Theme theme,
+            @RequestHeader(value = "X-Vendor-Phone", required = false) String vendorPhone) {
         try {
             // Validate required fields
             if (theme.getBusinessId() == null || theme.getBusinessId().trim().isEmpty()) {
@@ -36,6 +52,29 @@ public class ThemeController {
             }
             if (theme.getThemeCategory() == null || theme.getThemeCategory().trim().isEmpty()) {
                 return ResponseEntity.badRequest().build();
+            }
+            
+            // Validate vendor authorization if vendor phone is provided
+            if (vendorPhone != null && !vendorPhone.trim().isEmpty()) {
+                // Super admin can create themes for any business
+                if (!authorizationService.isSuperAdmin(vendorPhone)) {
+                    if (!authorizationService.canPerformVendorOperations(vendorPhone)) {
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                .body(Map.of("error", "Only vendors or super admins can create themes."));
+                    }
+                    
+                    // Verify vendor owns the business
+                    com.example.RecordService.model.Business business = businessService.getBusinessById(theme.getBusinessId());
+                    if (business == null || !business.getPhoneNumber().equals(vendorPhone)) {
+                        List<com.example.RecordService.model.Business> vendorBusinesses = businessService.getBusinessesByVendorPhoneNumber(vendorPhone);
+                        boolean ownsBusiness = vendorBusinesses.stream()
+                                .anyMatch(b -> b.getBusinessId().equals(theme.getBusinessId()));
+                        if (!ownsBusiness) {
+                            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                    .body(Map.of("error", "You can only create themes for your own businesses."));
+                        }
+                    }
+                }
             }
             
             // Save the theme
@@ -55,7 +94,9 @@ public class ThemeController {
      * @return ResponseEntity with the created theme and HTTP status
      */
     @PostMapping("/with-images")
-    public ResponseEntity<Theme> createThemeWithImages(@RequestBody Theme theme) {
+    public ResponseEntity<?> createThemeWithImages(
+            @RequestBody Theme theme,
+            @RequestHeader(value = "X-Vendor-Phone", required = false) String vendorPhone) {
         try {
             // Validate required fields
             if (theme.getBusinessId() == null || theme.getBusinessId().trim().isEmpty()) {
@@ -66,6 +107,27 @@ public class ThemeController {
             }
             if (theme.getThemeCategory() == null || theme.getThemeCategory().trim().isEmpty()) {
                 return ResponseEntity.badRequest().build();
+            }
+            
+            // Validate vendor authorization if vendor phone is provided
+            if (vendorPhone != null && !vendorPhone.trim().isEmpty()) {
+                // Super admin can create themes for any business
+                if (!authorizationService.isSuperAdmin(vendorPhone)) {
+                    if (!authorizationService.canPerformVendorOperations(vendorPhone)) {
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                    }
+                    
+                    // Verify vendor owns the business
+                    com.example.RecordService.model.Business business = businessService.getBusinessById(theme.getBusinessId());
+                    if (business == null || !business.getPhoneNumber().equals(vendorPhone)) {
+                        List<com.example.RecordService.model.Business> vendorBusinesses = businessService.getBusinessesByVendorPhoneNumber(vendorPhone);
+                        boolean ownsBusiness = vendorBusinesses.stream()
+                                .anyMatch(b -> b.getBusinessId().equals(theme.getBusinessId()));
+                        if (!ownsBusiness) {
+                            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                        }
+                    }
+                }
             }
             
             // Save the theme first
@@ -161,11 +223,49 @@ public class ThemeController {
      * PUT endpoint to update an existing theme
      * @param themeId the theme ID of the theme to update
      * @param theme the updated theme data
+     * @param vendorPhone the vendor's phone number from header (for authorization)
      * @return ResponseEntity with the updated theme
      */
     @PutMapping("/{themeId}")
-    public ResponseEntity<Theme> updateTheme(@PathVariable String themeId, @RequestBody Theme theme) {
+    public ResponseEntity<?> updateTheme(
+            @PathVariable String themeId, 
+            @RequestBody Theme theme,
+            @RequestHeader(value = "X-Vendor-Phone", required = false) String vendorPhone) {
         try {
+            // Get existing theme to verify ownership
+            Theme existingTheme = themeService.getThemeById(themeId);
+            if (existingTheme == null) {
+                return ResponseEntity.notFound().build();
+            }
+            
+            // Validate vendor ownership if vendor phone is provided
+            if (vendorPhone != null && !vendorPhone.trim().isEmpty()) {
+                // Super admin can update any theme
+                if (!authorizationService.isSuperAdmin(vendorPhone)) {
+                    if (!authorizationService.canPerformVendorOperations(vendorPhone)) {
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                .body(Map.of("error", "Only vendors or super admins can update product details."));
+                    }
+                    
+                    // Then verify ownership
+                    com.example.RecordService.model.Business business = businessService.getBusinessById(existingTheme.getBusinessId());
+                    if (business == null || !business.getPhoneNumber().equals(vendorPhone)) {
+                        // Check if vendor owns the business through any of their businesses
+                        List<com.example.RecordService.model.Business> vendorBusinesses = businessService.getBusinessesByVendorPhoneNumber(vendorPhone);
+                        boolean ownsBusiness = vendorBusinesses.stream()
+                                .anyMatch(b -> b.getBusinessId().equals(existingTheme.getBusinessId()));
+                        if (!ownsBusiness) {
+                            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                    .body(Map.of("error", "You can only update your own products."));
+                        }
+                    }
+                }
+            } else {
+                // If no vendor phone provided but trying to update, deny access
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.of("error", "Only vendors or super admins can update product details."));
+            }
+            
             theme.setThemeId(themeId); // Ensure theme ID consistency
             Theme updatedTheme = themeService.updateTheme(theme);
             if (updatedTheme != null) {
@@ -181,10 +281,41 @@ public class ThemeController {
     /**
      * DELETE endpoint to delete a theme by theme ID
      * @param themeId the theme ID
+     * @param vendorPhone the vendor's phone number from header (for authorization)
      * @return ResponseEntity with success status
      */
     @DeleteMapping("/{themeId}")
-    public ResponseEntity<Void> deleteTheme(@PathVariable String themeId) {
+    public ResponseEntity<Void> deleteTheme(
+            @PathVariable String themeId,
+            @RequestHeader(value = "X-Vendor-Phone", required = false) String vendorPhone) {
+        // Get existing theme to verify ownership
+        Theme existingTheme = themeService.getThemeById(themeId);
+        if (existingTheme == null) {
+            return ResponseEntity.notFound().build();
+        }
+        
+        // Validate vendor ownership if vendor phone is provided
+        if (vendorPhone != null && !vendorPhone.trim().isEmpty()) {
+            // Super admin can delete any theme
+            if (!authorizationService.isSuperAdmin(vendorPhone)) {
+                if (!authorizationService.canPerformVendorOperations(vendorPhone)) {
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                }
+                
+                // Then verify ownership
+                com.example.RecordService.model.Business business = businessService.getBusinessById(existingTheme.getBusinessId());
+                if (business == null || !business.getPhoneNumber().equals(vendorPhone)) {
+                    // Check if vendor owns the business through any of their businesses
+                    List<com.example.RecordService.model.Business> vendorBusinesses = businessService.getBusinessesByVendorPhoneNumber(vendorPhone);
+                    boolean ownsBusiness = vendorBusinesses.stream()
+                            .anyMatch(b -> b.getBusinessId().equals(existingTheme.getBusinessId()));
+                    if (!ownsBusiness) {
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                    }
+                }
+            }
+        }
+        
         boolean deleted = themeService.deleteTheme(themeId);
         if (deleted) {
             return ResponseEntity.noContent().build();

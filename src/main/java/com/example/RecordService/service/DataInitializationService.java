@@ -47,6 +47,9 @@ public class DataInitializationService implements CommandLineRunner {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+    
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
     @Override
     public void run(String... args) throws Exception {
@@ -55,6 +58,9 @@ public class DataInitializationService implements CommandLineRunner {
 
     private void initializeData() {
         System.out.println("🚀 Initializing application data...");
+
+        // Create database tables
+        createTables();
 
         // Create users
         User vendor1 = createVendor1();
@@ -84,6 +90,33 @@ public class DataInitializationService implements CommandLineRunner {
         createPlateImages();
 
         System.out.println("✅ Data initialization completed successfully!");
+    }
+
+    private void createTables() {
+        try {
+            // Create ratings table
+            String createRatingsTable = """
+                CREATE TABLE IF NOT EXISTS ratings (
+                    rating_id VARCHAR(255) PRIMARY KEY,
+                    client_phone VARCHAR(20) NOT NULL,
+                    item_id VARCHAR(255) NOT NULL,
+                    item_type VARCHAR(50) NOT NULL,
+                    business_id VARCHAR(255) NOT NULL,
+                    rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+                    comment TEXT,
+                    order_id VARCHAR(255),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    is_active BOOLEAN DEFAULT TRUE
+                )
+                """;
+            
+            jdbcTemplate.execute(createRatingsTable);
+            System.out.println("✅ Created ratings table");
+            
+        } catch (Exception e) {
+            System.err.println("❌ Error creating tables: " + e.getMessage());
+        }
     }
 
     private User createVendor1() {
@@ -271,6 +304,7 @@ public class DataInitializationService implements CommandLineRunner {
             plate1.setPlateId("PLATE_001");
             plate1.setDishName("Chicken Biryani");
             plate1.setDishDescription("Authentic chicken biryani with aromatic spices");
+            plate1.setPlateImage("http://localhost:8080/uploads/plates/butterChicken.jpg");
             plate1.setPrice(250.0);
             plate1.setDishType("non-veg");
             plate1.setBusinessId(business.getBusinessId());
@@ -287,6 +321,7 @@ public class DataInitializationService implements CommandLineRunner {
             plate2.setPlateId("PLATE_002");
             plate2.setDishName("Paneer Curry");
             plate2.setDishDescription("Delicious paneer curry with rich gravy");
+            plate2.setPlateImage("http://localhost:8080/uploads/plates/malaichapp.jpg");
             plate2.setPrice(200.0);
             plate2.setDishType("veg");
             plate2.setBusinessId(business.getBusinessId());

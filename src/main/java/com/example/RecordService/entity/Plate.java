@@ -10,6 +10,7 @@ public class Plate {
     private String plateImage;
     private Double price;
     private String dishType;
+    private int quantity; // Stock quantity
     private Boolean isActive;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -17,6 +18,7 @@ public class Plate {
     // Constructors
     public Plate() {
         this.dishType = "veg"; // Default to vegetarian
+        this.quantity = 0; // Default quantity
     }
 
     public Plate(String plateId, String businessId, String dishName, String dishDescription, 
@@ -89,6 +91,14 @@ public class Plate {
 
     public void setDishType(String dishType) {
         this.dishType = dishType;
+    }
+
+    public int getQuantity() {
+        return quantity;
+    }
+
+    public void setQuantity(int quantity) {
+        this.quantity = quantity;
     }
 
     public Boolean getIsActive() {

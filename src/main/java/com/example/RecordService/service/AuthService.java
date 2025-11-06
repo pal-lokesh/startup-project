@@ -42,7 +42,8 @@ public class AuthService {
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         return new JwtResponse(jwt, user.getPhoneNumber(), user.getEmail(), 
-                user.getFirstName(), user.getLastName(), user.getUserType(), user.getRole());
+                user.getFirstName(), user.getLastName(), user.getUserType(), user.getRole(),
+                user.isPhoneVerified(), user.isEmailVerified());
     }
 
     public User registerUser(SignupRequest signupRequest) {

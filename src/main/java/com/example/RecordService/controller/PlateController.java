@@ -2,6 +2,9 @@ package com.example.RecordService.controller;
 
 import com.example.RecordService.entity.Plate;
 import com.example.RecordService.service.PlateService;
+import com.example.RecordService.service.BusinessService;
+import com.example.RecordService.service.UserService;
+import com.example.RecordService.model.User;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,6 +20,15 @@ import java.util.Optional;
 public class PlateController {
     @Autowired
     private PlateService plateService;
+    
+    @Autowired
+    private BusinessService businessService;
+    
+    @Autowired
+    private UserService userService;
+    
+    @Autowired
+    private com.example.RecordService.service.AuthorizationService authorizationService;
 
     @GetMapping
     public ResponseEntity<List<Plate>> getAllPlates() {
@@ -50,7 +62,9 @@ public class PlateController {
     }
 
     @PostMapping
-    public ResponseEntity<Plate> createPlate(@RequestBody Plate plate) {
+    public ResponseEntity<?> createPlate(
+            @RequestBody Plate plate,
+            @RequestHeader(value = "X-Vendor-Phone", required = false) String vendorPhone) {
         try {
             // Validate required fields
             if (plate.getBusinessId() == null || plate.getBusinessId().trim().isEmpty()) {
@@ -64,6 +78,29 @@ public class PlateController {
             }
             if (plate.getPrice() == null || plate.getPrice() <= 0) {
                 return ResponseEntity.badRequest().build();
+            }
+            
+            // Validate vendor authorization if vendor phone is provided
+            if (vendorPhone != null && !vendorPhone.trim().isEmpty()) {
+                // Super admin can create plates for any business
+                if (!authorizationService.isSuperAdmin(vendorPhone)) {
+                    if (!authorizationService.canPerformVendorOperations(vendorPhone)) {
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                .body(Map.of("error", "Only vendors or super admins can create plates."));
+                    }
+                    
+                    // Verify vendor owns the business
+                    com.example.RecordService.model.Business business = businessService.getBusinessById(plate.getBusinessId());
+                    if (business == null || !business.getPhoneNumber().equals(vendorPhone)) {
+                        List<com.example.RecordService.model.Business> vendorBusinesses = businessService.getBusinessesByVendorPhoneNumber(vendorPhone);
+                        boolean ownsBusiness = vendorBusinesses.stream()
+                                .anyMatch(b -> b.getBusinessId().equals(plate.getBusinessId()));
+                        if (!ownsBusiness) {
+                            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                    .body(Map.of("error", "You can only create plates for your own businesses."));
+                        }
+                    }
+                }
             }
             
             Plate createdPlate = plateService.createPlate(plate);
@@ -80,7 +117,9 @@ public class PlateController {
      * @return ResponseEntity with the created plate and HTTP status
      */
     @PostMapping("/with-image")
-    public ResponseEntity<Plate> createPlateWithImage(@RequestBody Plate plate) {
+    public ResponseEntity<?> createPlateWithImage(
+            @RequestBody Plate plate,
+            @RequestHeader(value = "X-Vendor-Phone", required = false) String vendorPhone) {
         try {
             // Validate required fields
             if (plate.getBusinessId() == null || plate.getBusinessId().trim().isEmpty()) {
@@ -96,6 +135,27 @@ public class PlateController {
                 return ResponseEntity.badRequest().build();
             }
             
+            // Validate vendor authorization if vendor phone is provided
+            if (vendorPhone != null && !vendorPhone.trim().isEmpty()) {
+                // Super admin can create plates for any business
+                if (!authorizationService.isSuperAdmin(vendorPhone)) {
+                    if (!authorizationService.canPerformVendorOperations(vendorPhone)) {
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                    }
+                    
+                    // Verify vendor owns the business
+                    com.example.RecordService.model.Business business = businessService.getBusinessById(plate.getBusinessId());
+                    if (business == null || !business.getPhoneNumber().equals(vendorPhone)) {
+                        List<com.example.RecordService.model.Business> vendorBusinesses = businessService.getBusinessesByVendorPhoneNumber(vendorPhone);
+                        boolean ownsBusiness = vendorBusinesses.stream()
+                                .anyMatch(b -> b.getBusinessId().equals(plate.getBusinessId()));
+                        if (!ownsBusiness) {
+                            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                        }
+                    }
+                }
+            }
+            
             // Validate that plate has an image
             if (plate.getPlateImage() == null || plate.getPlateImage().trim().isEmpty()) {
                 return ResponseEntity.badRequest().build();
@@ -109,8 +169,46 @@ public class PlateController {
     }
 
     @PutMapping("/{plateId}")
-    public ResponseEntity<Plate> updatePlate(@PathVariable String plateId, @RequestBody Plate plateDetails) {
+    public ResponseEntity<?> updatePlate(
+            @PathVariable String plateId,
+            @RequestBody Plate plateDetails,
+            @RequestHeader(value = "X-Vendor-Phone", required = false) String vendorPhone) {
         try {
+            // Get existing plate to verify ownership
+            Optional<Plate> existingPlateOpt = plateService.getPlateById(plateId);
+            if (!existingPlateOpt.isPresent()) {
+                return ResponseEntity.notFound().build();
+            }
+            Plate existingPlate = existingPlateOpt.get();
+            
+            // Validate vendor ownership if vendor phone is provided
+            if (vendorPhone != null && !vendorPhone.trim().isEmpty()) {
+                // Super admin can update any plate
+                if (!authorizationService.isSuperAdmin(vendorPhone)) {
+                    if (!authorizationService.canPerformVendorOperations(vendorPhone)) {
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                .body(Map.of("error", "Only vendors or super admins can update product details."));
+                    }
+                    
+                    // Then verify ownership
+                    com.example.RecordService.model.Business business = businessService.getBusinessById(existingPlate.getBusinessId());
+                    if (business == null || !business.getPhoneNumber().equals(vendorPhone)) {
+                        // Check if vendor owns the business through any of their businesses
+                        List<com.example.RecordService.model.Business> vendorBusinesses = businessService.getBusinessesByVendorPhoneNumber(vendorPhone);
+                        boolean ownsBusiness = vendorBusinesses.stream()
+                                .anyMatch(b -> b.getBusinessId().equals(existingPlate.getBusinessId()));
+                        if (!ownsBusiness) {
+                            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                    .body(Map.of("error", "You can only update your own products."));
+                        }
+                    }
+                }
+            } else {
+                // If no vendor phone provided but trying to update, deny access
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.of("error", "Only vendors or super admins can update product details."));
+            }
+            
             Plate updatedPlate = plateService.updatePlate(plateId, plateDetails);
             return ResponseEntity.ok(updatedPlate);
         } catch (RuntimeException e) {
@@ -121,8 +219,39 @@ public class PlateController {
     }
 
     @DeleteMapping("/{plateId}")
-    public ResponseEntity<Void> deletePlate(@PathVariable String plateId) {
+    public ResponseEntity<Void> deletePlate(
+            @PathVariable String plateId,
+            @RequestHeader(value = "X-Vendor-Phone", required = false) String vendorPhone) {
         try {
+            // Get existing plate to verify ownership
+            Optional<Plate> existingPlateOpt = plateService.getPlateById(plateId);
+            if (!existingPlateOpt.isPresent()) {
+                return ResponseEntity.notFound().build();
+            }
+            Plate existingPlate = existingPlateOpt.get();
+            
+            // Validate vendor ownership if vendor phone is provided
+            if (vendorPhone != null && !vendorPhone.trim().isEmpty()) {
+                // Super admin can delete any plate
+                if (!authorizationService.isSuperAdmin(vendorPhone)) {
+                    if (!authorizationService.canPerformVendorOperations(vendorPhone)) {
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                    }
+                    
+                    // Then verify ownership
+                    com.example.RecordService.model.Business business = businessService.getBusinessById(existingPlate.getBusinessId());
+                    if (business == null || !business.getPhoneNumber().equals(vendorPhone)) {
+                        // Check if vendor owns the business through any of their businesses
+                        List<com.example.RecordService.model.Business> vendorBusinesses = businessService.getBusinessesByVendorPhoneNumber(vendorPhone);
+                        boolean ownsBusiness = vendorBusinesses.stream()
+                                .anyMatch(b -> b.getBusinessId().equals(existingPlate.getBusinessId()));
+                        if (!ownsBusiness) {
+                            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                        }
+                    }
+                }
+            }
+            
             plateService.deletePlate(plateId);
             return ResponseEntity.noContent().build();
         } catch (Exception e) {

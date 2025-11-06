@@ -9,6 +9,7 @@ public class Theme {
     private String themeDescription;
     private String themeCategory;
     private String priceRange;
+    private int quantity; // Stock quantity
     private boolean isActive;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -31,6 +32,7 @@ public class Theme {
         this.themeDescription = themeDescription;
         this.themeCategory = themeCategory;
         this.priceRange = priceRange;
+        this.quantity = 0; // Default quantity
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
         this.isActive = true;
@@ -83,6 +85,14 @@ public class Theme {
 
     public void setPriceRange(String priceRange) {
         this.priceRange = priceRange;
+    }
+
+    public int getQuantity() {
+        return quantity;
+    }
+
+    public void setQuantity(int quantity) {
+        this.quantity = quantity;
     }
 
     public boolean isActive() {

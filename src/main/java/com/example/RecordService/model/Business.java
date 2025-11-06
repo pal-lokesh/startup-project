@@ -10,6 +10,8 @@ public class Business {
     private String businessDescription;
     private String businessCategory;
     private String businessAddress;
+    private Double latitude;  // Geographic latitude
+    private Double longitude; // Geographic longitude
     private String businessPhone;
     private String businessEmail;
     private String website;
@@ -94,6 +96,22 @@ public class Business {
         this.businessAddress = businessAddress;
     }
 
+    public Double getLatitude() {
+        return latitude;
+    }
+
+    public void setLatitude(Double latitude) {
+        this.latitude = latitude;
+    }
+
+    public Double getLongitude() {
+        return longitude;
+    }
+
+    public void setLongitude(Double longitude) {
+        this.longitude = longitude;
+    }
+
     public String getBusinessPhone() {
         return businessPhone;
     }
@@ -166,6 +184,15 @@ public class Business {
         this.themes = themes;
     }
 
+    /**
+     * Check if business has valid geolocation coordinates
+     */
+    public boolean hasValidGeolocation() {
+        return latitude != null && longitude != null &&
+               latitude >= -90 && latitude <= 90 &&
+               longitude >= -180 && longitude <= 180;
+    }
+
     @Override
     public String toString() {
         return "Business{" +
@@ -175,6 +202,8 @@ public class Business {
                 ", businessDescription='" + businessDescription + '\'' +
                 ", businessCategory='" + businessCategory + '\'' +
                 ", businessAddress='" + businessAddress + '\'' +
+                ", latitude=" + latitude +
+                ", longitude=" + longitude +
                 ", businessPhone='" + businessPhone + '\'' +
                 ", businessEmail='" + businessEmail + '\'' +
                 ", website='" + website + '\'' +

@@ -4,6 +4,9 @@ import com.example.RecordService.entity.Order;
 import com.example.RecordService.entity.OrderItem;
 import com.example.RecordService.entity.Notification;
 import com.example.RecordService.entity.ClientNotification;
+import com.example.RecordService.model.Theme;
+import com.example.RecordService.entity.Inventory;
+import com.example.RecordService.entity.Plate;
 import com.example.RecordService.model.dto.OrderRequest;
 import com.example.RecordService.model.dto.OrderResponse;
 import com.example.RecordService.model.dto.OrderItemResponse;
@@ -32,6 +35,16 @@ public class OrderService {
     @Autowired
     private ClientNotificationService clientNotificationService;
     
+    @Autowired
+    private ThemeService themeService;
+    
+    @Autowired
+    private InventoryService inventoryService;
+    
+    @Autowired
+    private PlateService plateService;
+    
+    
     /**
      * Create a new order
      * @param orderRequest the order request
@@ -57,6 +70,12 @@ public class OrderService {
             
             order.setSpecialNotes(orderRequest.getSpecialNotes());
             
+            // Set delivery geolocation if provided
+            if (orderRequest.getDeliveryLatitude() != null && orderRequest.getDeliveryLongitude() != null) {
+                order.setDeliveryLatitude(orderRequest.getDeliveryLatitude());
+                order.setDeliveryLongitude(orderRequest.getDeliveryLongitude());
+            }
+            
             // Save order first to get the ID
             Order savedOrder = orderRepository.save(order);
             
@@ -81,6 +100,9 @@ public class OrderService {
             // Set order items and save again
             savedOrder.setOrderItems(orderItems);
             Order finalOrder = orderRepository.save(savedOrder);
+            
+            // Decrement stock for all items in the order
+            decrementStockForOrderItems(orderItems);
             
             // Create notification for vendors
             notificationService.createOrderNotification(finalOrder);
@@ -153,6 +175,33 @@ public class OrderService {
     }
     
     /**
+     * Check if a client has purchased a specific item
+     * @param userId the user ID (client's phone number)
+     * @param itemId the item ID (themeId, inventoryId, or plateId)
+     * @param itemType the item type (THEME, INVENTORY, or PLATE)
+     * @return true if client has purchased the item, false otherwise
+     */
+    public boolean hasClientPurchasedItem(String userId, String itemId, String itemType) {
+        List<Order> orders = orderRepository.findByUserIdOrderByOrderDateDesc(userId);
+        
+        // Check if any order contains the item with status DELIVERED or at least CONFIRMED
+        return orders.stream()
+                .filter(order -> order.getStatus() == Order.OrderStatus.DELIVERED || 
+                               order.getStatus() == Order.OrderStatus.CONFIRMED ||
+                               order.getStatus() == Order.OrderStatus.PREPARING ||
+                               order.getStatus() == Order.OrderStatus.READY ||
+                               order.getStatus() == Order.OrderStatus.SHIPPED)
+                .anyMatch(order -> {
+                    if (order.getOrderItems() == null) {
+                        return false;
+                    }
+                    return order.getOrderItems().stream()
+                            .anyMatch(item -> item.getItemId().equals(itemId) && 
+                                           item.getItemType().equalsIgnoreCase(itemType));
+                });
+    }
+    
+    /**
      * Update order status
      * @param orderId the order ID
      * @param status the new status
@@ -174,11 +223,41 @@ public class OrderService {
                 // Create client notification for status change
                 ClientNotification.NotificationType clientNotificationType = getClientNotificationTypeForStatus(status);
                 clientNotificationService.createOrderUpdateNotification(updatedOrder, clientNotificationType);
+                
+                // If order is cancelled, restore stock
+                if (status == Order.OrderStatus.CANCELLED) {
+                    try {
+                        restoreStockForOrderItems(updatedOrder.getOrderItems());
+                    } catch (Exception e) {
+                        System.err.println("Failed to restore stock for cancelled order " + updatedOrder.getOrderId() + ": " + e.getMessage());
+                    }
+                }
+                
+                // If order is delivered, create rating requests for each item
+                if (status == Order.OrderStatus.DELIVERED) {
+                    try {
+                        createRatingRequestsForDeliveredOrder(updatedOrder);
+                    } catch (Exception e) {
+                        System.err.println("Failed to create rating requests for order " + updatedOrder.getOrderId() + ": " + e.getMessage());
+                    }
+                }
+                
             }
             
             return Optional.of(convertToOrderResponse(updatedOrder));
         }
         return Optional.empty();
+    }
+    
+    /**
+     * Create rating requests for all items in a delivered order
+     * @param order the delivered order
+     */
+    private void createRatingRequestsForDeliveredOrder(Order order) {
+        // This method will be called when an order is delivered
+        // The actual rating creation will be handled by the frontend when the client submits ratings
+        // We just need to ensure the order is marked as delivered and can be rated
+        System.out.println("Order " + order.getOrderId() + " has been delivered. Client can now rate the items.");
     }
     
     /**
@@ -266,6 +345,94 @@ public class OrderService {
         }
         
         return response;
+    }
+    
+    /**
+     * Decrement stock for all items in an order
+     * @param orderItems the order items
+     */
+    private void decrementStockForOrderItems(List<OrderItem> orderItems) {
+        for (OrderItem item : orderItems) {
+            try {
+                String itemType = item.getItemType().toUpperCase();
+                String itemId = item.getItemId();
+                int quantity = item.getQuantity();
+                
+                if ("THEME".equals(itemType)) {
+                    Theme theme = themeService.getThemeById(itemId);
+                    if (theme != null) {
+                        int currentQuantity = theme.getQuantity();
+                        theme.setQuantity(Math.max(0, currentQuantity - quantity));
+                        theme.setUpdatedAt(LocalDateTime.now());
+                        themeService.saveTheme(theme);
+                    }
+                } else if ("INVENTORY".equals(itemType)) {
+                    Optional<Inventory> inventoryOpt = inventoryService.getInventoryById(itemId);
+                    if (inventoryOpt.isPresent()) {
+                        Inventory inventory = inventoryOpt.get();
+                        int currentQuantity = inventory.getQuantity();
+                        inventory.setQuantity(Math.max(0, currentQuantity - quantity));
+                        inventory.setUpdatedAt(LocalDateTime.now());
+                        inventoryService.updateInventory(inventory);
+                    }
+                } else if ("PLATE".equals(itemType)) {
+                    Optional<Plate> plateOpt = plateService.getPlateById(itemId);
+                    if (plateOpt.isPresent()) {
+                        Plate plate = plateOpt.get();
+                        int currentQuantity = plate.getQuantity();
+                        plate.setQuantity(Math.max(0, currentQuantity - quantity));
+                        plate.setUpdatedAt(LocalDateTime.now());
+                        plateService.updatePlate(itemId, plate);
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("Error decrementing stock for item " + item.getItemId() + ": " + e.getMessage());
+            }
+        }
+    }
+    
+    /**
+     * Restore stock for all items in a cancelled order
+     * @param orderItems the order items
+     */
+    private void restoreStockForOrderItems(List<OrderItem> orderItems) {
+        for (OrderItem item : orderItems) {
+            try {
+                String itemType = item.getItemType().toUpperCase();
+                String itemId = item.getItemId();
+                int quantity = item.getQuantity();
+                
+                if ("THEME".equals(itemType)) {
+                    Theme theme = themeService.getThemeById(itemId);
+                    if (theme != null) {
+                        theme.setQuantity(theme.getQuantity() + quantity);
+                        theme.setUpdatedAt(LocalDateTime.now());
+                        // Use updateTheme to trigger notifications if stock changes from 0 to >0
+                        themeService.updateTheme(theme);
+                    }
+                } else if ("INVENTORY".equals(itemType)) {
+                    Optional<Inventory> inventoryOpt = inventoryService.getInventoryById(itemId);
+                    if (inventoryOpt.isPresent()) {
+                        Inventory inventory = inventoryOpt.get();
+                        inventory.setQuantity(inventory.getQuantity() + quantity);
+                        inventory.setUpdatedAt(LocalDateTime.now());
+                        // updateInventory will automatically notify subscribers if stock changes from 0 to >0
+                        inventoryService.updateInventory(inventory);
+                    }
+                } else if ("PLATE".equals(itemType)) {
+                    Optional<Plate> plateOpt = plateService.getPlateById(itemId);
+                    if (plateOpt.isPresent()) {
+                        Plate plate = plateOpt.get();
+                        plate.setQuantity(plate.getQuantity() + quantity);
+                        plate.setUpdatedAt(LocalDateTime.now());
+                        // updatePlate will automatically notify subscribers if stock changes from 0 to >0
+                        plateService.updatePlate(itemId, plate);
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("Error restoring stock for item " + item.getItemId() + ": " + e.getMessage());
+            }
+        }
     }
     
     /**

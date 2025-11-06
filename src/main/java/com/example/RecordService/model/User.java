@@ -68,6 +68,24 @@ public class User implements UserDetails {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    @Column(name = "phone_verified", nullable = false)
+    private boolean phoneVerified = false;
+
+    @Column(name = "email_verified", nullable = false)
+    private boolean emailVerified = false;
+
+    @Column(name = "phone_verification_code", length = 6)
+    private String phoneVerificationCode;
+
+    @Column(name = "email_verification_code", length = 6)
+    private String emailVerificationCode;
+
+    @Column(name = "phone_verification_code_expiry")
+    private LocalDateTime phoneVerificationCodeExpiry;
+
+    @Column(name = "email_verification_code_expiry")
+    private LocalDateTime emailVerificationCodeExpiry;
+
     // Enum for User Type
     public enum UserType {
         VENDOR, CLIENT
@@ -75,7 +93,7 @@ public class User implements UserDetails {
 
     // Enum for User Role
     public enum Role {
-        USER, ADMIN, VENDOR_ADMIN
+        USER, ADMIN, VENDOR_ADMIN, SUPER_ADMIN
     }
 
     // Default constructor
@@ -215,6 +233,55 @@ public class User implements UserDetails {
 
     public void setCredentialsNonExpired(boolean credentialsNonExpired) {
         this.credentialsNonExpired = credentialsNonExpired;
+    }
+
+    // Verification getters and setters
+    public boolean isPhoneVerified() {
+        return phoneVerified;
+    }
+
+    public void setPhoneVerified(boolean phoneVerified) {
+        this.phoneVerified = phoneVerified;
+    }
+
+    public boolean isEmailVerified() {
+        return emailVerified;
+    }
+
+    public void setEmailVerified(boolean emailVerified) {
+        this.emailVerified = emailVerified;
+    }
+
+    public String getPhoneVerificationCode() {
+        return phoneVerificationCode;
+    }
+
+    public void setPhoneVerificationCode(String phoneVerificationCode) {
+        this.phoneVerificationCode = phoneVerificationCode;
+    }
+
+    public String getEmailVerificationCode() {
+        return emailVerificationCode;
+    }
+
+    public void setEmailVerificationCode(String emailVerificationCode) {
+        this.emailVerificationCode = emailVerificationCode;
+    }
+
+    public LocalDateTime getPhoneVerificationCodeExpiry() {
+        return phoneVerificationCodeExpiry;
+    }
+
+    public void setPhoneVerificationCodeExpiry(LocalDateTime phoneVerificationCodeExpiry) {
+        this.phoneVerificationCodeExpiry = phoneVerificationCodeExpiry;
+    }
+
+    public LocalDateTime getEmailVerificationCodeExpiry() {
+        return emailVerificationCodeExpiry;
+    }
+
+    public void setEmailVerificationCodeExpiry(LocalDateTime emailVerificationCodeExpiry) {
+        this.emailVerificationCodeExpiry = emailVerificationCodeExpiry;
     }
 
     @Override

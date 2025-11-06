@@ -20,8 +20,8 @@ public class ClientNotification {
     @Column(name = "business_name", nullable = false)
     private String businessName;
 
-    @Column(name = "order_id", nullable = false)
-    private Long orderId;
+    @Column(name = "order_id")
+    private Long orderId; // Nullable for stock notifications
 
     @Column(name = "customer_name", nullable = false)
     private String customerName;
@@ -117,6 +117,7 @@ public class ClientNotification {
         ORDER_READY,
         ORDER_SHIPPED,
         ORDER_DELIVERED,
-        ORDER_CANCELLED
+        ORDER_CANCELLED,
+        STOCK_AVAILABLE
     }
 }

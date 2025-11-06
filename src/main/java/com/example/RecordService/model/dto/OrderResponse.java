@@ -12,6 +12,8 @@ public class OrderResponse {
     private String customerEmail;
     private String customerPhone;
     private String deliveryAddress;
+    private Double deliveryLatitude;  // Geographic latitude for delivery location
+    private Double deliveryLongitude; // Geographic longitude for delivery location
     private String deliveryDate;
     private String specialNotes;
     private Double totalAmount;
@@ -29,6 +31,8 @@ public class OrderResponse {
         this.customerEmail = order.getCustomerEmail();
         this.customerPhone = order.getCustomerPhone();
         this.deliveryAddress = order.getDeliveryAddress();
+        this.deliveryLatitude = order.getDeliveryLatitude();
+        this.deliveryLongitude = order.getDeliveryLongitude();
         this.deliveryDate = order.getDeliveryDate();
         this.specialNotes = order.getSpecialNotes();
         this.totalAmount = order.getTotalAmount();
@@ -84,7 +88,23 @@ public class OrderResponse {
     public void setDeliveryAddress(String deliveryAddress) {
         this.deliveryAddress = deliveryAddress;
     }
-    
+
+    public Double getDeliveryLatitude() {
+        return deliveryLatitude;
+    }
+
+    public void setDeliveryLatitude(Double deliveryLatitude) {
+        this.deliveryLatitude = deliveryLatitude;
+    }
+
+    public Double getDeliveryLongitude() {
+        return deliveryLongitude;
+    }
+
+    public void setDeliveryLongitude(Double deliveryLongitude) {
+        this.deliveryLongitude = deliveryLongitude;
+    }
+
     public String getDeliveryDate() {
         return deliveryDate;
     }

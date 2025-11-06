@@ -1,13 +1,19 @@
 package com.example.RecordService.controller;
 
 import com.example.RecordService.model.Business;
+import com.example.RecordService.model.dto.GeocodeRequest;
+import com.example.RecordService.model.dto.ReverseGeocodeRequest;
 import com.example.RecordService.service.BusinessService;
+import com.example.RecordService.service.GeolocationService;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/businesses")
@@ -16,6 +22,9 @@ public class BusinessController {
     
     @Autowired
     private BusinessService businessService;
+
+    @Autowired
+    private GeolocationService geolocationService;
     
     /**
      * POST endpoint to create a new business
@@ -163,5 +172,102 @@ public class BusinessController {
     public ResponseEntity<List<Business>> getBusinessesByVendorPhoneNumber(@PathVariable String phoneNumber) {
         List<Business> businesses = businessService.getBusinessesByVendorPhoneNumber(phoneNumber);
         return ResponseEntity.ok(businesses);
+    }
+
+    /**
+     * POST endpoint to geocode an address (convert address to coordinates)
+     * @param request the geocode request containing the address
+     * @return ResponseEntity with latitude and longitude
+     */
+    @PostMapping("/geocode")
+    public ResponseEntity<?> geocodeAddress(@Valid @RequestBody GeocodeRequest request) {
+        try {
+            Map<String, Double> coordinates = geolocationService.geocodeAddress(request.getAddress());
+            if (coordinates != null && coordinates.containsKey("latitude") && coordinates.containsKey("longitude")) {
+                Map<String, Object> response = new HashMap<>();
+                response.put("address", request.getAddress());
+                response.put("latitude", coordinates.get("latitude"));
+                response.put("longitude", coordinates.get("longitude"));
+                return ResponseEntity.ok(response);
+            } else {
+                Map<String, String> error = new HashMap<>();
+                error.put("error", "Unable to geocode address. Please ensure geocoding service is configured.");
+                error.put("message", "Geocoding service needs to be integrated. See GeolocationService for implementation details.");
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(error);
+            }
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "An error occurred while geocoding the address");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
+
+    /**
+     * POST endpoint to reverse geocode coordinates (convert coordinates to address)
+     * @param request the reverse geocode request containing latitude and longitude
+     * @return ResponseEntity with the address
+     */
+    @PostMapping("/reverse-geocode")
+    public ResponseEntity<?> reverseGeocode(@Valid @RequestBody ReverseGeocodeRequest request) {
+        try {
+            String address = geolocationService.reverseGeocode(request.getLatitude(), request.getLongitude());
+            if (address != null) {
+                Map<String, Object> response = new HashMap<>();
+                response.put("latitude", request.getLatitude());
+                response.put("longitude", request.getLongitude());
+                response.put("address", address);
+                return ResponseEntity.ok(response);
+            } else {
+                Map<String, String> error = new HashMap<>();
+                error.put("error", "Unable to reverse geocode coordinates. Please ensure reverse geocoding service is configured.");
+                error.put("message", "Reverse geocoding service needs to be integrated. See GeolocationService for implementation details.");
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(error);
+            }
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "An error occurred while reverse geocoding the coordinates");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
+
+    /**
+     * GET endpoint to find businesses near a location
+     * @param latitude the latitude coordinate
+     * @param longitude the longitude coordinate
+     * @param radiusKm the radius in kilometers (default: 10km)
+     * @return ResponseEntity with list of nearby businesses
+     */
+    @GetMapping("/nearby")
+    public ResponseEntity<?> findNearbyBusinesses(
+            @RequestParam double latitude,
+            @RequestParam double longitude,
+            @RequestParam(defaultValue = "10.0") double radiusKm) {
+        try {
+            // Validate coordinates
+            if (!geolocationService.isValidCoordinates(latitude, longitude)) {
+                Map<String, String> error = new HashMap<>();
+                error.put("error", "Invalid coordinates. Latitude must be between -90 and 90, longitude between -180 and 180");
+                return ResponseEntity.badRequest().body(error);
+            }
+
+            if (radiusKm <= 0 || radiusKm > 1000) {
+                Map<String, String> error = new HashMap<>();
+                error.put("error", "Radius must be between 0 and 1000 kilometers");
+                return ResponseEntity.badRequest().body(error);
+            }
+
+            List<Business> businesses = businessService.findNearbyBusinesses(latitude, longitude, radiusKm);
+            Map<String, Object> response = new HashMap<>();
+            response.put("latitude", latitude);
+            response.put("longitude", longitude);
+            response.put("radiusKm", radiusKm);
+            response.put("count", businesses.size());
+            response.put("businesses", businesses);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "An error occurred while finding nearby businesses");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
     }
 }

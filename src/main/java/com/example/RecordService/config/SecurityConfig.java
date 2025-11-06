@@ -58,16 +58,19 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers("/api/verification/**").permitAll()
                 .requestMatchers("/api/public/**").permitAll()
                 .requestMatchers("/api/test/**").permitAll()
                 .requestMatchers("/actuator/**").permitAll()
                 .requestMatchers("/api/users/count").permitAll()
                 .requestMatchers("/api/businesses/count").permitAll()
-                .requestMatchers("/api/images/count").permitAll()
+                .requestMatchers("/api/images/**").permitAll()
+                .requestMatchers("/uploads/**").permitAll()
                 .requestMatchers("/api/themes/count").permitAll()
                 .requestMatchers("/api/vendors/count").permitAll()
                 .requestMatchers("/api/inventory/count").permitAll()
                 .requestMatchers("/api/plates/count").permitAll()
+                .requestMatchers("/api/plates").permitAll()
                 .requestMatchers("/api/users/me").authenticated()
                 .requestMatchers("/api/businesses/phone/**").authenticated()
                 .requestMatchers("/api/businesses/vendor/**").authenticated()
@@ -76,6 +79,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/inventory/images/**").authenticated()
                 .requestMatchers("/api/plates/business/**").authenticated()
                 .requestMatchers("/api/orders/**").authenticated()
+                .requestMatchers("/api/stock-notifications/**").authenticated()
                 .requestMatchers("/api/users/**").hasRole("ADMIN")
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/vendor/**").hasAnyRole("VENDOR_ADMIN", "ADMIN")
@@ -91,9 +95,10 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOriginPatterns(Arrays.asList("*"));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);
+        configuration.setMaxAge(3600L);
         
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

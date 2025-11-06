@@ -39,13 +39,15 @@ public class AuthController {
             User user = authService.registerUser(signupRequest);
             Map<String, Object> response = new HashMap<>();
             response.put("message", "User registered successfully!");
-            response.put("user", Map.of(
-                "phoneNumber", user.getPhoneNumber(),
-                "email", user.getEmail(),
-                "firstName", user.getFirstName(),
-                "lastName", user.getLastName(),
-                "userType", user.getUserType()
-            ));
+            Map<String, Object> userData = new HashMap<>();
+            userData.put("phoneNumber", user.getPhoneNumber());
+            userData.put("email", user.getEmail());
+            userData.put("firstName", user.getFirstName());
+            userData.put("lastName", user.getLastName());
+            userData.put("userType", user.getUserType());
+            userData.put("phoneVerified", user.isPhoneVerified());
+            userData.put("emailVerified", user.isEmailVerified());
+            response.put("user", userData);
             return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
             Map<String, String> error = new HashMap<>();

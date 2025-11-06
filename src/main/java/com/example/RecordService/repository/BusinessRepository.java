@@ -16,4 +16,5 @@ public interface BusinessRepository {
     Business update(Business business);
     boolean delete(String businessId);
     long count();
+    List<Business> findNearby(double latitude, double longitude, double radiusKm);
 }

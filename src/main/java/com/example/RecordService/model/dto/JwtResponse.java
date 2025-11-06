@@ -11,8 +11,10 @@ public class JwtResponse {
     private String lastName;
     private User.UserType userType;
     private User.Role role;
+    private boolean phoneVerified;
+    private boolean emailVerified;
 
-    public JwtResponse(String token, String phoneNumber, String email, String firstName, String lastName, User.UserType userType, User.Role role) {
+    public JwtResponse(String token, String phoneNumber, String email, String firstName, String lastName, User.UserType userType, User.Role role, boolean phoneVerified, boolean emailVerified) {
         this.token = token;
         this.phoneNumber = phoneNumber;
         this.email = email;
@@ -20,6 +22,8 @@ public class JwtResponse {
         this.lastName = lastName;
         this.userType = userType;
         this.role = role;
+        this.phoneVerified = phoneVerified;
+        this.emailVerified = emailVerified;
     }
 
     // Getters and Setters
@@ -85,5 +89,21 @@ public class JwtResponse {
 
     public void setRole(User.Role role) {
         this.role = role;
+    }
+
+    public boolean isPhoneVerified() {
+        return phoneVerified;
+    }
+
+    public void setPhoneVerified(boolean phoneVerified) {
+        this.phoneVerified = phoneVerified;
+    }
+
+    public boolean isEmailVerified() {
+        return emailVerified;
+    }
+
+    public void setEmailVerified(boolean emailVerified) {
+        this.emailVerified = emailVerified;
     }
 }

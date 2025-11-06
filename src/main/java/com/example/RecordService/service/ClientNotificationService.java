@@ -206,4 +206,12 @@ public class ClientNotificationService {
                 );
         }
     }
+    
+    /**
+     * Save a notification directly (for stock notifications and other non-order notifications)
+     * @param notification the notification to save
+     */
+    public void saveNotification(ClientNotification notification) {
+        clientNotificationRepository.save(notification);
+    }
 }

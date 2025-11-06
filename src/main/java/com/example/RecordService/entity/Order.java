@@ -27,6 +27,12 @@ public class Order {
     @Column(name = "delivery_address", nullable = false)
     private String deliveryAddress;
     
+    @Column(name = "delivery_latitude")
+    private Double deliveryLatitude;  // Geographic latitude for delivery location
+    
+    @Column(name = "delivery_longitude")
+    private Double deliveryLongitude; // Geographic longitude for delivery location
+    
     @Column(name = "delivery_date", nullable = false)
     private String deliveryDate;
     
@@ -112,7 +118,32 @@ public class Order {
     public void setDeliveryAddress(String deliveryAddress) {
         this.deliveryAddress = deliveryAddress;
     }
-    
+
+    public Double getDeliveryLatitude() {
+        return deliveryLatitude;
+    }
+
+    public void setDeliveryLatitude(Double deliveryLatitude) {
+        this.deliveryLatitude = deliveryLatitude;
+    }
+
+    public Double getDeliveryLongitude() {
+        return deliveryLongitude;
+    }
+
+    public void setDeliveryLongitude(Double deliveryLongitude) {
+        this.deliveryLongitude = deliveryLongitude;
+    }
+
+    /**
+     * Check if order has valid delivery geolocation coordinates
+     */
+    public boolean hasValidDeliveryGeolocation() {
+        return deliveryLatitude != null && deliveryLongitude != null &&
+               deliveryLatitude >= -90 && deliveryLatitude <= 90 &&
+               deliveryLongitude >= -180 && deliveryLongitude <= 180;
+    }
+
     public String getDeliveryDate() {
         return deliveryDate;
     }

@@ -2,12 +2,16 @@ package com.example.RecordService.controller;
 
 import com.example.RecordService.entity.Inventory;
 import com.example.RecordService.service.InventoryService;
+import com.example.RecordService.service.BusinessService;
+import com.example.RecordService.service.UserService;
+import com.example.RecordService.model.User;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @RestController
@@ -17,9 +21,20 @@ public class InventoryController {
 
     @Autowired
     private InventoryService inventoryService;
+    
+    @Autowired
+    private BusinessService businessService;
+    
+    @Autowired
+    private UserService userService;
+    
+    @Autowired
+    private com.example.RecordService.service.AuthorizationService authorizationService;
 
     @PostMapping
-    public ResponseEntity<Inventory> createInventory(@RequestBody Inventory inventory) {
+    public ResponseEntity<?> createInventory(
+            @RequestBody Inventory inventory,
+            @RequestHeader(value = "X-Vendor-Phone", required = false) String vendorPhone) {
         try {
             // Validate required fields
             if (inventory.getBusinessId() == null || inventory.getBusinessId().trim().isEmpty()) {
@@ -41,6 +56,29 @@ public class InventoryController {
                 return ResponseEntity.badRequest().build();
             }
 
+            // Validate vendor authorization if vendor phone is provided
+            if (vendorPhone != null && !vendorPhone.trim().isEmpty()) {
+                // Super admin can create inventory for any business
+                if (!authorizationService.isSuperAdmin(vendorPhone)) {
+                    if (!authorizationService.canPerformVendorOperations(vendorPhone)) {
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                .body(Map.of("error", "Only vendors or super admins can create inventory."));
+                    }
+                    
+                    // Verify vendor owns the business
+                    com.example.RecordService.model.Business business = businessService.getBusinessById(inventory.getBusinessId());
+                    if (business == null || !business.getPhoneNumber().equals(vendorPhone)) {
+                        List<com.example.RecordService.model.Business> vendorBusinesses = businessService.getBusinessesByVendorPhoneNumber(vendorPhone);
+                        boolean ownsBusiness = vendorBusinesses.stream()
+                                .anyMatch(b -> b.getBusinessId().equals(inventory.getBusinessId()));
+                        if (!ownsBusiness) {
+                            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                    .body(Map.of("error", "You can only create inventory for your own businesses."));
+                        }
+                    }
+                }
+            }
+
             // Save the inventory
             Inventory savedInventory = inventoryService.saveInventory(inventory);
             return ResponseEntity.status(HttpStatus.CREATED).body(savedInventory);
@@ -56,7 +94,9 @@ public class InventoryController {
      * @return ResponseEntity with the created inventory and HTTP status
      */
     @PostMapping("/with-images")
-    public ResponseEntity<Inventory> createInventoryWithImages(@RequestBody Inventory inventory) {
+    public ResponseEntity<?> createInventoryWithImages(
+            @RequestBody Inventory inventory,
+            @RequestHeader(value = "X-Vendor-Phone", required = false) String vendorPhone) {
         try {
             // Validate required fields
             if (inventory.getBusinessId() == null || inventory.getBusinessId().trim().isEmpty()) {
@@ -73,6 +113,29 @@ public class InventoryController {
             }
             if (inventory.getPrice() < 0) {
                 return ResponseEntity.badRequest().build();
+            }
+            
+            // Validate vendor authorization if vendor phone is provided
+            if (vendorPhone != null && !vendorPhone.trim().isEmpty()) {
+                // Super admin can create inventory for any business
+                if (!authorizationService.isSuperAdmin(vendorPhone)) {
+                    if (!authorizationService.canPerformVendorOperations(vendorPhone)) {
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                .body(Map.of("error", "Only vendors or super admins can create inventory."));
+                    }
+                    
+                    // Verify vendor owns the business
+                    com.example.RecordService.model.Business business = businessService.getBusinessById(inventory.getBusinessId());
+                    if (business == null || !business.getPhoneNumber().equals(vendorPhone)) {
+                        List<com.example.RecordService.model.Business> vendorBusinesses = businessService.getBusinessesByVendorPhoneNumber(vendorPhone);
+                        boolean ownsBusiness = vendorBusinesses.stream()
+                                .anyMatch(b -> b.getBusinessId().equals(inventory.getBusinessId()));
+                        if (!ownsBusiness) {
+                            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                    .body(Map.of("error", "You can only create inventory for your own businesses."));
+                        }
+                    }
+                }
             }
             if (inventory.getQuantity() < 0) {
                 return ResponseEntity.badRequest().build();
@@ -110,8 +173,46 @@ public class InventoryController {
     }
 
     @PutMapping("/{inventoryId}")
-    public ResponseEntity<Inventory> updateInventory(@PathVariable String inventoryId, @RequestBody Inventory inventory) {
+    public ResponseEntity<?> updateInventory(
+            @PathVariable String inventoryId,
+            @RequestBody Inventory inventory,
+            @RequestHeader(value = "X-Vendor-Phone", required = false) String vendorPhone) {
         try {
+            // Get existing inventory to verify ownership
+            Optional<Inventory> existingInventoryOpt = inventoryService.getInventoryById(inventoryId);
+            if (!existingInventoryOpt.isPresent()) {
+                return ResponseEntity.notFound().build();
+            }
+            Inventory existingInventory = existingInventoryOpt.get();
+            
+            // Validate vendor ownership if vendor phone is provided
+            if (vendorPhone != null && !vendorPhone.trim().isEmpty()) {
+                // Super admin can update any inventory
+                if (!authorizationService.isSuperAdmin(vendorPhone)) {
+                    if (!authorizationService.canPerformVendorOperations(vendorPhone)) {
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                .body(Map.of("error", "Only vendors or super admins can update product details."));
+                    }
+                    
+                    // Then verify ownership
+                    com.example.RecordService.model.Business business = businessService.getBusinessById(existingInventory.getBusinessId());
+                    if (business == null || !business.getPhoneNumber().equals(vendorPhone)) {
+                        // Check if vendor owns the business through any of their businesses
+                        List<com.example.RecordService.model.Business> vendorBusinesses = businessService.getBusinessesByVendorPhoneNumber(vendorPhone);
+                        boolean ownsBusiness = vendorBusinesses.stream()
+                                .anyMatch(b -> b.getBusinessId().equals(existingInventory.getBusinessId()));
+                        if (!ownsBusiness) {
+                            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                    .body(Map.of("error", "You can only update your own products."));
+                        }
+                    }
+                }
+            } else {
+                // If no vendor phone provided but trying to update, deny access
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.of("error", "Only vendors or super admins can update product details."));
+            }
+            
             inventory.setInventoryId(inventoryId);
             Inventory updatedInventory = inventoryService.updateInventory(inventory);
             return ResponseEntity.ok(updatedInventory);
@@ -121,7 +222,38 @@ public class InventoryController {
     }
 
     @DeleteMapping("/{inventoryId}")
-    public ResponseEntity<Void> deleteInventory(@PathVariable String inventoryId) {
+    public ResponseEntity<Void> deleteInventory(
+            @PathVariable String inventoryId,
+            @RequestHeader(value = "X-Vendor-Phone", required = false) String vendorPhone) {
+        // Get existing inventory to verify ownership
+        Optional<Inventory> existingInventoryOpt = inventoryService.getInventoryById(inventoryId);
+        if (!existingInventoryOpt.isPresent()) {
+            return ResponseEntity.notFound().build();
+        }
+        Inventory existingInventory = existingInventoryOpt.get();
+        
+        // Validate vendor ownership if vendor phone is provided
+        if (vendorPhone != null && !vendorPhone.trim().isEmpty()) {
+            // Super admin can delete any inventory
+            if (!authorizationService.isSuperAdmin(vendorPhone)) {
+                if (!authorizationService.canPerformVendorOperations(vendorPhone)) {
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                }
+                
+                // Then verify ownership
+                com.example.RecordService.model.Business business = businessService.getBusinessById(existingInventory.getBusinessId());
+                if (business == null || !business.getPhoneNumber().equals(vendorPhone)) {
+                    // Check if vendor owns the business through any of their businesses
+                    List<com.example.RecordService.model.Business> vendorBusinesses = businessService.getBusinessesByVendorPhoneNumber(vendorPhone);
+                    boolean ownsBusiness = vendorBusinesses.stream()
+                            .anyMatch(b -> b.getBusinessId().equals(existingInventory.getBusinessId()));
+                    if (!ownsBusiness) {
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                    }
+                }
+            }
+        }
+        
         boolean deleted = inventoryService.deleteInventory(inventoryId);
         return deleted ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build();
     }

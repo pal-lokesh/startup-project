@@ -118,4 +118,15 @@ public class BusinessService {
     public List<Business> getBusinessesByVendorPhoneNumber(String phoneNumber) {
         return businessRepository.findByVendorPhoneNumber(phoneNumber);
     }
+
+    /**
+     * Find businesses near a specific location
+     * @param latitude the latitude coordinate
+     * @param longitude the longitude coordinate
+     * @param radiusKm the radius in kilometers to search within
+     * @return list of businesses within the specified radius
+     */
+    public List<Business> findNearbyBusinesses(double latitude, double longitude, double radiusKm) {
+        return businessRepository.findNearby(latitude, longitude, radiusKm);
+    }
 }

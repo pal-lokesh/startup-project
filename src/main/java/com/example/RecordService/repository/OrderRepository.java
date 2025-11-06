@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface OrderRepository extends JpaRepository<Order, Long> {
@@ -56,4 +57,11 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
      * @return list of orders for the customer
      */
     List<Order> findByCustomerEmailOrderByOrderDateDesc(String customerEmail);
+    
+    /**
+     * Find order by order ID
+     * @param orderId the order ID
+     * @return the order if found
+     */
+    Optional<Order> findByOrderId(Long orderId);
 }

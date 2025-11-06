@@ -24,6 +24,9 @@ public class ThemeService {
     @Autowired
     private BusinessRepository businessRepository;
     
+    @Autowired
+    private com.example.RecordService.service.StockNotificationService stockNotificationService;
+    
     /**
      * Save a new theme
      * @param theme the theme to be saved
@@ -92,7 +95,26 @@ public class ThemeService {
      * @return the updated theme
      */
     public Theme updateTheme(Theme theme) {
-        return themeRepository.update(theme);
+        // Get existing theme to check if stock changed from 0 to >0
+        Theme existingTheme = themeRepository.findByThemeId(theme.getThemeId());
+        int previousQuantity = existingTheme != null ? existingTheme.getQuantity() : 0;
+        
+        Theme updatedTheme = themeRepository.update(theme);
+        
+        // If item was out of stock and now has stock, notify subscribers
+        if (previousQuantity == 0 && updatedTheme.getQuantity() > 0) {
+            try {
+                stockNotificationService.notifySubscribers(
+                    updatedTheme.getThemeId(), 
+                    "THEME", 
+                    updatedTheme.getThemeName()
+                );
+            } catch (Exception e) {
+                System.err.println("Failed to notify subscribers for theme " + updatedTheme.getThemeId() + ": " + e.getMessage());
+            }
+        }
+        
+        return updatedTheme;
     }
     
     /**

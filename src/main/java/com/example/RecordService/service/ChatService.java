@@ -31,13 +31,27 @@ public class ChatService {
     @Autowired
     private UserRepository userRepository;
     
-    public ChatResponse createOrGetChat(String clientPhone, String vendorPhone, String businessId, String businessName, Long orderId) {
+    public ChatResponse createOrGetChat(String clientPhone, String vendorPhone, String businessId, String businessName, Long orderId, String callerPhone) {
         Optional<Chat> existingChat = chatRepository.findActiveChat(clientPhone, vendorPhone, businessId);
         
+        // If chat exists, return it (both clients and vendors can get existing chats)
         if (existingChat.isPresent()) {
             return convertToChatResponse(existingChat.get());
         }
         
+        // If chat doesn't exist, check if caller is a vendor trying to create a new chat
+        // Vendors cannot create new chats - only clients can initiate conversations
+        if (callerPhone != null && !callerPhone.trim().isEmpty()) {
+            Optional<User> caller = userRepository.findById(callerPhone);
+            if (caller.isPresent() && caller.get().getUserType() == User.UserType.VENDOR) {
+                // Check if the caller is the vendor in this chat
+                if (callerPhone.equals(vendorPhone)) {
+                    throw new IllegalArgumentException("Vendors cannot start new conversations. Please wait for the client to send the first message.");
+                }
+            }
+        }
+        
+        // Create new chat (only allowed for clients)
         Chat newChat = new Chat();
         newChat.setClientPhone(clientPhone);
         newChat.setVendorPhone(vendorPhone);

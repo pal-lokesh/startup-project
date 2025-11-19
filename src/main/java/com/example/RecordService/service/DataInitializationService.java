@@ -210,7 +210,8 @@ public class DataInitializationService implements CommandLineRunner {
     }
 
     private Business createBusiness2(User vendor) {
-        if (businessRepository.findByBusinessId("BUSINESS_002") == null) {
+        Business existingBusiness = businessRepository.findByBusinessId("BUSINESS_002");
+        if (existingBusiness == null) {
             Business business = new Business();
             business.setBusinessId("BUSINESS_002");
             business.setBusinessName("Delicious Catering Services");
@@ -224,10 +225,18 @@ public class DataInitializationService implements CommandLineRunner {
             business.setUpdatedAt(LocalDateTime.now());
 
             businessRepository.save(business);
-            System.out.println("✅ Created Business 2: " + business.getBusinessName());
+            System.out.println("✅ Created Business 2: " + business.getBusinessName() + " (ID: " + business.getBusinessId() + ", Category: " + business.getBusinessCategory() + ")");
             return business;
+        } else {
+            // Ensure category is set correctly even if business exists
+            if (!"caters".equals(existingBusiness.getBusinessCategory())) {
+                existingBusiness.setBusinessCategory("caters");
+                businessRepository.update(existingBusiness);
+                System.out.println("✅ Updated Business 2 category to 'caters'");
+            }
+            System.out.println("✅ Business 2 already exists: " + existingBusiness.getBusinessName() + " (ID: " + existingBusiness.getBusinessId() + ", Category: " + existingBusiness.getBusinessCategory() + ")");
+            return existingBusiness;
         }
-        return businessRepository.findByBusinessId("BUSINESS_002");
     }
 
     private void createThemes(Business business) {
@@ -298,38 +307,45 @@ public class DataInitializationService implements CommandLineRunner {
     }
 
     private void createPlates(Business business) {
-        if (plateRepository.findById("PLATE_001").isEmpty()) {
-            // Create Plate 1: Biryani
-            Plate plate1 = new Plate();
-            plate1.setPlateId("PLATE_001");
-            plate1.setDishName("Chicken Biryani");
-            plate1.setDishDescription("Authentic chicken biryani with aromatic spices");
-            plate1.setPlateImage("http://localhost:8080/uploads/plates/butterChicken.jpg");
-            plate1.setPrice(250.0);
-            plate1.setDishType("non-veg");
-            plate1.setBusinessId(business.getBusinessId());
-            plate1.setCreatedAt(LocalDateTime.now());
-            plate1.setUpdatedAt(LocalDateTime.now());
+        try {
+            // Check if plates table exists and if plates already exist
+            if (plateRepository.findById("PLATE_001").isEmpty()) {
+                // Create Plate 1: Biryani
+                Plate plate1 = new Plate();
+                plate1.setPlateId("PLATE_001");
+                plate1.setDishName("Chicken Biryani");
+                plate1.setDishDescription("Authentic chicken biryani with aromatic spices");
+                plate1.setPlateImage("http://localhost:8080/uploads/plates/butterChicken.jpg");
+                plate1.setPrice(250.0);
+                plate1.setDishType("non-veg");
+                plate1.setBusinessId(business.getBusinessId());
+                plate1.setCreatedAt(LocalDateTime.now());
+                plate1.setUpdatedAt(LocalDateTime.now());
 
-            plateRepository.save(plate1);
-            System.out.println("✅ Created Plate 1: " + plate1.getDishName());
-        }
+                plateRepository.save(plate1);
+                System.out.println("✅ Created Plate 1: " + plate1.getDishName());
+            }
 
-        if (plateRepository.findById("PLATE_002").isEmpty()) {
-            // Create Plate 2: Paneer Curry
-            Plate plate2 = new Plate();
-            plate2.setPlateId("PLATE_002");
-            plate2.setDishName("Paneer Curry");
-            plate2.setDishDescription("Delicious paneer curry with rich gravy");
-            plate2.setPlateImage("http://localhost:8080/uploads/plates/malaichapp.jpg");
-            plate2.setPrice(200.0);
-            plate2.setDishType("veg");
-            plate2.setBusinessId(business.getBusinessId());
-            plate2.setCreatedAt(LocalDateTime.now());
-            plate2.setUpdatedAt(LocalDateTime.now());
+            if (plateRepository.findById("PLATE_002").isEmpty()) {
+                // Create Plate 2: Paneer Curry
+                Plate plate2 = new Plate();
+                plate2.setPlateId("PLATE_002");
+                plate2.setDishName("Paneer Curry");
+                plate2.setDishDescription("Delicious paneer curry with rich gravy");
+                plate2.setPlateImage("http://localhost:8080/uploads/plates/malaichapp.jpg");
+                plate2.setPrice(200.0);
+                plate2.setDishType("veg");
+                plate2.setBusinessId(business.getBusinessId());
+                plate2.setCreatedAt(LocalDateTime.now());
+                plate2.setUpdatedAt(LocalDateTime.now());
 
-            plateRepository.save(plate2);
-            System.out.println("✅ Created Plate 2: " + plate2.getDishName());
+                plateRepository.save(plate2);
+                System.out.println("✅ Created Plate 2: " + plate2.getDishName());
+            }
+        } catch (Exception e) {
+            // Table might not exist yet - Hibernate will create it on next startup
+            System.out.println("⚠️  Could not initialize plates (table may not exist yet): " + e.getMessage());
+            System.out.println("   Plates will be available after table is created by Hibernate.");
         }
     }
 

@@ -25,10 +25,10 @@ public class RatingService {
 
     // Create a new rating
     public RatingResponse createRating(String clientPhone, RatingRequest request) {
-        // Check if client has purchased this item (required for rating)
+        // Check if client has a DELIVERED order for this item (required for rating)
         boolean hasPurchased = orderService.hasClientPurchasedItem(clientPhone, request.getItemId(), request.getItemType());
         if (!hasPurchased) {
-            throw new IllegalArgumentException("You can only rate items that you have purchased. Please purchase this item first.");
+            throw new IllegalArgumentException("You can only rate items after your order has been successfully delivered. Please wait for your order to be delivered before rating.");
         }
         
         // Check if client has already rated this item

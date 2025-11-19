@@ -26,6 +26,9 @@ public class StockNotification {
     @Column(name = "business_id", nullable = false)
     private String businessId;
     
+    @Column(name = "requested_date")
+    private String requestedDate; // The specific date the user wants to be notified about (nullable for general stock notifications)
+    
     @Column(name = "notified", nullable = false)
     private boolean notified = false; // Whether user has been notified
     
@@ -48,6 +51,17 @@ public class StockNotification {
         this.itemType = itemType;
         this.itemName = itemName;
         this.businessId = businessId;
+    }
+    
+    public StockNotification(String userId, String itemId, String itemType, 
+                           String itemName, String businessId, String requestedDate) {
+        this();
+        this.userId = userId;
+        this.itemId = itemId;
+        this.itemType = itemType;
+        this.itemName = itemName;
+        this.businessId = businessId;
+        this.requestedDate = requestedDate;
     }
     
     // Getters and Setters
@@ -124,6 +138,14 @@ public class StockNotification {
     
     public void setNotifiedAt(LocalDateTime notifiedAt) {
         this.notifiedAt = notifiedAt;
+    }
+    
+    public String getRequestedDate() {
+        return requestedDate;
+    }
+    
+    public void setRequestedDate(String requestedDate) {
+        this.requestedDate = requestedDate;
     }
 }
 

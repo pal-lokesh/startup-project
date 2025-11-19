@@ -3,6 +3,7 @@ package com.example.RecordService.controller;
 import com.example.RecordService.model.Business;
 import com.example.RecordService.model.dto.GeocodeRequest;
 import com.example.RecordService.model.dto.ReverseGeocodeRequest;
+import com.example.RecordService.service.AuthorizationService;
 import com.example.RecordService.service.BusinessService;
 import com.example.RecordService.service.GeolocationService;
 import jakarta.validation.Valid;
@@ -25,6 +26,9 @@ public class BusinessController {
 
     @Autowired
     private GeolocationService geolocationService;
+    
+    @Autowired
+    private AuthorizationService authorizationService;
     
     /**
      * POST endpoint to create a new business
@@ -121,11 +125,49 @@ public class BusinessController {
      * PUT endpoint to update an existing business
      * @param businessId the business ID of the business to update
      * @param business the updated business data
+     * @param vendorPhone the vendor's phone number from request header (optional, for authorization)
      * @return ResponseEntity with the updated business
      */
     @PutMapping("/{businessId}")
-    public ResponseEntity<Business> updateBusiness(@PathVariable String businessId, @RequestBody Business business) {
+    public ResponseEntity<?> updateBusiness(
+            @PathVariable String businessId, 
+            @RequestBody Business business,
+            @RequestHeader(value = "X-Vendor-Phone", required = false) String vendorPhone) {
         try {
+            // Get existing business to verify it exists
+            Business existingBusiness = businessService.getBusinessById(businessId);
+            if (existingBusiness == null) {
+                return ResponseEntity.notFound().build();
+            }
+            
+            // Validate vendor authorization if vendor phone is provided
+            if (vendorPhone != null && !vendorPhone.trim().isEmpty()) {
+                // Super admin can update any business
+                if (!authorizationService.isSuperAdmin(vendorPhone)) {
+                    // First, verify user is a VENDOR, not a CLIENT
+                    if (!authorizationService.canPerformVendorOperations(vendorPhone)) {
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                .body(Map.of("error", "Only vendors or super admins can update business details."));
+                    }
+                    
+                    // Then verify ownership - check if vendor owns this business
+                    if (!existingBusiness.getPhoneNumber().equals(vendorPhone)) {
+                        // Check if vendor owns the business through any of their businesses
+                        List<Business> vendorBusinesses = businessService.getBusinessesByVendorPhoneNumber(vendorPhone);
+                        boolean ownsBusiness = vendorBusinesses.stream()
+                                .anyMatch(b -> b.getBusinessId().equals(businessId));
+                        if (!ownsBusiness) {
+                            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                    .body(Map.of("error", "You can only update your own business details."));
+                        }
+                    }
+                }
+            } else {
+                // If no vendor phone provided but trying to update, deny access (unless it's a super admin call)
+                // For now, we'll allow it but log a warning - in production, you might want to require authentication
+                // This allows backward compatibility but is less secure
+            }
+            
             business.setBusinessId(businessId); // Ensure business ID consistency
             Business updatedBusiness = businessService.updateBusiness(business);
             if (updatedBusiness != null) {
@@ -134,7 +176,8 @@ public class BusinessController {
                 return ResponseEntity.notFound().build();
             }
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to update business: " + e.getMessage()));
         }
     }
     

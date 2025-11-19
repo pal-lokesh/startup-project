@@ -1,18 +1,44 @@
 package com.example.RecordService.entity;
 
+import jakarta.persistence.*;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
+@Entity
+@Table(name = "plates")
 public class Plate {
+    @Id
+    @Column(name = "plate_id", length = 100)
     private String plateId;
+
+    @Column(name = "business_id", nullable = false)
     private String businessId;
+
+    @Column(name = "dish_name", nullable = false)
     private String dishName;
+
+    @Column(name = "dish_description", columnDefinition = "TEXT")
     private String dishDescription;
+
+    @Column(name = "plate_image", columnDefinition = "TEXT")
     private String plateImage;
+
+    @Column(name = "price", nullable = false)
     private Double price;
+
+    @Column(name = "dish_type")
     private String dishType;
+
+    @Column(name = "quantity")
     private int quantity; // Stock quantity
+
+    @Column(name = "is_active")
     private Boolean isActive;
+
+    @Column(name = "created_at")
     private LocalDateTime createdAt;
+
+    @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
     // Constructors
@@ -123,6 +149,29 @@ public class Plate {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    @PrePersist
+    public void prePersist() {
+        if (this.plateId == null || this.plateId.trim().isEmpty()) {
+            this.plateId = "PLATE_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase();
+        }
+        if (this.dishType == null || this.dishType.trim().isEmpty()) {
+            this.dishType = "veg"; // Default to vegetarian
+        }
+        if (this.quantity < 0) {
+            this.quantity = 0; // Default quantity
+        }
+        if (this.isActive == null) {
+            this.isActive = true;
+        }
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    public void preUpdate() {
+        this.updatedAt = LocalDateTime.now();
     }
 
     @Override

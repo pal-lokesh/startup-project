@@ -44,6 +44,9 @@ public class OrderService {
     @Autowired
     private PlateService plateService;
     
+    @Autowired
+    private AvailabilityService availabilityService;
+    
     
     /**
      * Create a new order
@@ -52,6 +55,18 @@ public class OrderService {
      */
     public OrderResponse createOrder(OrderRequest orderRequest) {
         try {
+            System.out.println("OrderService.createOrder - Starting order creation");
+            System.out.println("Items to process: " + orderRequest.getItems().size());
+            
+            // Validate stock availability and date availability before creating order
+            System.out.println("Validating stock availability...");
+            validateStockAvailability(orderRequest.getItems());
+            System.out.println("Stock validation passed");
+            
+            System.out.println("Validating date availability...");
+            validateDateAvailability(orderRequest.getItems());
+            System.out.println("Date validation passed");
+            
             // Calculate total amount
             Double totalAmount = orderRequest.getItems().stream()
                     .mapToDouble(item -> item.getItemPrice() * item.getQuantity())
@@ -82,17 +97,38 @@ public class OrderService {
             // Create order items
             List<OrderItem> orderItems = orderRequest.getItems().stream()
                     .map(itemRequest -> {
-                        OrderItem orderItem = new OrderItem(
-                            savedOrder,
-                            itemRequest.getItemId(),
-                            itemRequest.getItemName(),
-                            itemRequest.getItemPrice(),
-                            itemRequest.getQuantity(),
-                            itemRequest.getItemType(),
-                            itemRequest.getBusinessId(),
-                            itemRequest.getBusinessName()
-                        );
+                        OrderItem orderItem;
+                        if (itemRequest.getBookingDate() != null) {
+                            // Use constructor with booking date
+                            orderItem = new OrderItem(
+                                savedOrder,
+                                itemRequest.getItemId(),
+                                itemRequest.getItemName(),
+                                itemRequest.getItemPrice(),
+                                itemRequest.getQuantity(),
+                                itemRequest.getItemType(),
+                                itemRequest.getBusinessId(),
+                                itemRequest.getBusinessName(),
+                                itemRequest.getBookingDate()
+                            );
+                        } else {
+                            // Use constructor without booking date
+                            orderItem = new OrderItem(
+                                savedOrder,
+                                itemRequest.getItemId(),
+                                itemRequest.getItemName(),
+                                itemRequest.getItemPrice(),
+                                itemRequest.getQuantity(),
+                                itemRequest.getItemType(),
+                                itemRequest.getBusinessId(),
+                                itemRequest.getBusinessName()
+                            );
+                        }
                         orderItem.setImageUrl(itemRequest.getImageUrl());
+                        // Set selected dishes if present (for plates)
+                        if (itemRequest.getSelectedDishes() != null && !itemRequest.getSelectedDishes().trim().isEmpty()) {
+                            orderItem.setSelectedDishes(itemRequest.getSelectedDishes());
+                        }
                         return orderItem;
                     })
                     .collect(Collectors.toList());
@@ -101,8 +137,18 @@ public class OrderService {
             savedOrder.setOrderItems(orderItems);
             Order finalOrder = orderRepository.save(savedOrder);
             
-            // Decrement stock for all items in the order
-            decrementStockForOrderItems(orderItems);
+            // Decrement stock immediately when order is created
+            // This reserves the stock for the order
+            try {
+                System.out.println("Decrementing stock for order " + finalOrder.getOrderId());
+                decrementStockForOrderItems(finalOrder.getOrderItems());
+                System.out.println("Stock decremented successfully for order " + finalOrder.getOrderId());
+            } catch (Exception e) {
+                System.err.println("Failed to decrement stock for order " + finalOrder.getOrderId() + ": " + e.getMessage());
+                e.printStackTrace();
+                // Don't fail the order creation if stock decrement fails - log it for investigation
+                // Stock will be validated again when order is confirmed
+            }
             
             // Create notification for vendors
             notificationService.createOrderNotification(finalOrder);
@@ -112,6 +158,9 @@ public class OrderService {
             
             return convertToOrderResponse(finalOrder);
             
+        } catch (IllegalArgumentException e) {
+            // Re-throw validation errors
+            throw e;
         } catch (Exception e) {
             throw new RuntimeException("Failed to create order: " + e.getMessage(), e);
         }
@@ -175,22 +224,18 @@ public class OrderService {
     }
     
     /**
-     * Check if a client has purchased a specific item
+     * Check if a client has purchased and received a specific item (only DELIVERED orders)
      * @param userId the user ID (client's phone number)
      * @param itemId the item ID (themeId, inventoryId, or plateId)
      * @param itemType the item type (THEME, INVENTORY, or PLATE)
-     * @return true if client has purchased the item, false otherwise
+     * @return true if client has a DELIVERED order containing the item, false otherwise
      */
     public boolean hasClientPurchasedItem(String userId, String itemId, String itemType) {
         List<Order> orders = orderRepository.findByUserIdOrderByOrderDateDesc(userId);
         
-        // Check if any order contains the item with status DELIVERED or at least CONFIRMED
+        // Only check DELIVERED orders - clients can only rate after delivery
         return orders.stream()
-                .filter(order -> order.getStatus() == Order.OrderStatus.DELIVERED || 
-                               order.getStatus() == Order.OrderStatus.CONFIRMED ||
-                               order.getStatus() == Order.OrderStatus.PREPARING ||
-                               order.getStatus() == Order.OrderStatus.READY ||
-                               order.getStatus() == Order.OrderStatus.SHIPPED)
+                .filter(order -> order.getStatus() == Order.OrderStatus.DELIVERED)
                 .anyMatch(order -> {
                     if (order.getOrderItems() == null) {
                         return false;
@@ -224,12 +269,21 @@ public class OrderService {
                 ClientNotification.NotificationType clientNotificationType = getClientNotificationTypeForStatus(status);
                 clientNotificationService.createOrderUpdateNotification(updatedOrder, clientNotificationType);
                 
-                // If order is cancelled, restore stock
+                // If order is confirmed, no need to re-validate - validation was already done at client side
+                // Stock/availability was already decremented when order was created, so no need to decrement again
+                if (status == Order.OrderStatus.CONFIRMED && oldStatus == Order.OrderStatus.PENDING) {
+                    System.out.println("Order " + updatedOrder.getOrderId() + " confirmed - stock/availability was already validated and decremented on creation");
+                }
+                
+                // If order is cancelled, restore stock (stock was decremented on order creation, so restore it)
                 if (status == Order.OrderStatus.CANCELLED) {
                     try {
+                        System.out.println("Restoring stock for cancelled order " + updatedOrder.getOrderId());
                         restoreStockForOrderItems(updatedOrder.getOrderItems());
+                        System.out.println("Stock restored successfully for cancelled order " + updatedOrder.getOrderId());
                     } catch (Exception e) {
                         System.err.println("Failed to restore stock for cancelled order " + updatedOrder.getOrderId() + ": " + e.getMessage());
+                        e.printStackTrace();
                     }
                 }
                 
@@ -348,7 +402,176 @@ public class OrderService {
     }
     
     /**
+     * Validate date availability for order items before creating order
+     * @param items the order items to validate
+     * @throws IllegalArgumentException if item is not available on the requested date
+     */
+    private void validateDateAvailability(List<com.example.RecordService.model.dto.OrderItemRequest> items) {
+        for (com.example.RecordService.model.dto.OrderItemRequest item : items) {
+            if (item.getBookingDate() != null) {
+                try {
+                    System.out.println("Validating date availability for item: " + item.getItemName() + 
+                        ", Date: " + item.getBookingDate() + 
+                        ", Quantity: " + item.getQuantity());
+                    
+                    // Check if item is available on the requested date
+                    Integer availableQuantity = availabilityService.getAvailableQuantity(
+                        item.getItemId(), 
+                        item.getItemType().toLowerCase(), 
+                        item.getBookingDate()
+                    );
+                    
+                    System.out.println("Available quantity for " + item.getItemName() + " on " + 
+                        item.getBookingDate() + ": " + availableQuantity);
+                    
+                    if (availableQuantity == null || availableQuantity < item.getQuantity()) {
+                        throw new IllegalArgumentException(
+                            "Item '" + item.getItemName() + "' is not available on " + item.getBookingDate() + ". " +
+                            "Available quantity: " + (availableQuantity != null ? availableQuantity : 0) + 
+                            ", Requested: " + item.getQuantity()
+                        );
+                    }
+                } catch (IllegalArgumentException e) {
+                    // Re-throw validation errors
+                    throw e;
+                } catch (Exception e) {
+                    System.err.println("Error validating date availability for item " + item.getItemName() + ": " + e.getMessage());
+                    e.printStackTrace();
+                    throw new RuntimeException("Failed to validate date availability: " + e.getMessage(), e);
+                }
+            }
+        }
+    }
+    
+    /**
+     * Validate date availability for existing order items (used when confirming order)
+     * @param orderItems the order items to validate
+     * @param orderId the order ID (used to exclude this order from booked quantity calculation)
+     * @throws IllegalArgumentException if item is not available on the requested date
+     */
+    private void validateDateAvailabilityForOrderItems(List<OrderItem> orderItems, Long orderId) {
+        if (orderItems == null) {
+            return;
+        }
+        
+        for (OrderItem item : orderItems) {
+            if (item == null) {
+                continue;
+            }
+            
+            if (item.getBookingDate() != null) {
+                try {
+                    System.out.println("Validating date availability for order item: " + item.getItemName() + 
+                        ", Date: " + item.getBookingDate() + 
+                        ", Quantity: " + item.getQuantity() +
+                        ", Order ID: " + orderId);
+                    
+                    // Check if item is available on the requested date
+                    // Note: Availability was already decremented when order was created (PENDING),
+                    // so we need to add back this order's quantity to check if it was valid
+                    Integer availableQuantity = availabilityService.getAvailableQuantity(
+                        item.getItemId(), 
+                        item.getItemType().toLowerCase(), 
+                        item.getBookingDate()
+                    );
+                    
+                    // Add back this order's quantity since it was already reserved when order was created
+                    // This allows the vendor to confirm the "last available" order
+                    int adjustedAvailableQuantity = availableQuantity + item.getQuantity();
+                    
+                    System.out.println("Available quantity for " + item.getItemName() + " on " + 
+                        item.getBookingDate() + ": " + availableQuantity + 
+                        " (adjusted: " + adjustedAvailableQuantity + " including this order's reserved quantity)");
+                    
+                    if (adjustedAvailableQuantity < item.getQuantity()) {
+                        throw new IllegalArgumentException(
+                            "Item '" + item.getItemName() + "' is not available on " + item.getBookingDate() + ". " +
+                            "Available quantity: " + availableQuantity + 
+                            ", Requested: " + item.getQuantity()
+                        );
+                    }
+                } catch (IllegalArgumentException e) {
+                    // Re-throw validation errors
+                    throw e;
+                } catch (Exception e) {
+                    System.err.println("Error validating date availability for item " + item.getItemName() + ": " + e.getMessage());
+                    e.printStackTrace();
+                    throw new RuntimeException("Failed to validate date availability: " + e.getMessage(), e);
+                }
+            }
+        }
+    }
+    
+    /**
+     * Validate stock availability for order items before creating order
+     * Note: If an item has a bookingDate, skip general stock validation as date availability is checked separately
+     * @param items the order items to validate
+     * @throws IllegalArgumentException if stock is insufficient
+     */
+    private void validateStockAvailability(List<com.example.RecordService.model.dto.OrderItemRequest> items) {
+        for (com.example.RecordService.model.dto.OrderItemRequest item : items) {
+            // Skip general stock validation if item has a booking date
+            // Date availability will be validated separately in validateDateAvailability()
+            if (item.getBookingDate() != null) {
+                System.out.println("Skipping general stock validation for item " + item.getItemName() + 
+                    " - has booking date: " + item.getBookingDate());
+                continue;
+            }
+            
+            String itemType = item.getItemType().toUpperCase();
+            String itemId = item.getItemId();
+            int requestedQuantity = item.getQuantity();
+            
+            System.out.println("Validating general stock for item: " + item.getItemName() + 
+                ", Type: " + itemType + ", Quantity: " + requestedQuantity);
+            
+            if ("THEME".equals(itemType)) {
+                Theme theme = themeService.getThemeById(itemId);
+                if (theme == null) {
+                    throw new IllegalArgumentException("Theme with ID " + itemId + " not found");
+                }
+                System.out.println("Theme general stock: " + theme.getQuantity());
+                if (theme.getQuantity() < requestedQuantity) {
+                    throw new IllegalArgumentException(
+                        "Insufficient stock for theme '" + item.getItemName() + "'. " +
+                        "Available: " + theme.getQuantity() + ", Requested: " + requestedQuantity
+                    );
+                }
+            } else if ("INVENTORY".equals(itemType)) {
+                Optional<Inventory> inventoryOpt = inventoryService.getInventoryById(itemId);
+                if (inventoryOpt.isEmpty()) {
+                    throw new IllegalArgumentException("Inventory with ID " + itemId + " not found");
+                }
+                Inventory inventory = inventoryOpt.get();
+                System.out.println("Inventory general stock: " + inventory.getQuantity());
+                if (inventory.getQuantity() < requestedQuantity) {
+                    throw new IllegalArgumentException(
+                        "Insufficient stock for inventory '" + item.getItemName() + "'. " +
+                        "Available: " + inventory.getQuantity() + ", Requested: " + requestedQuantity
+                    );
+                }
+            } else if ("PLATE".equals(itemType)) {
+                Optional<Plate> plateOpt = plateService.getPlateById(itemId);
+                if (plateOpt.isEmpty()) {
+                    throw new IllegalArgumentException("Plate with ID " + itemId + " not found");
+                }
+                Plate plate = plateOpt.get();
+                System.out.println("Plate general stock: " + plate.getQuantity());
+                if (plate.getQuantity() < requestedQuantity) {
+                    throw new IllegalArgumentException(
+                        "Insufficient stock for plate '" + item.getItemName() + "'. " +
+                        "Available: " + plate.getQuantity() + ", Requested: " + requestedQuantity
+                    );
+                }
+            }
+        }
+    }
+    
+    // Stock validation during confirmation removed: stock is enforced at client checkout time
+    
+    /**
      * Decrement stock for all items in an order
+     * Note: For items with booking dates, only date availability is decremented, not general stock
      * @param orderItems the order items
      */
     private void decrementStockForOrderItems(List<OrderItem> orderItems) {
@@ -358,11 +581,30 @@ public class OrderService {
                 String itemId = item.getItemId();
                 int quantity = item.getQuantity();
                 
+                // Decrement date availability if booking date is set
+                if (item.getBookingDate() != null) {
+                    System.out.println("Decrementing date availability for item " + item.getItemName() + 
+                        " on date " + item.getBookingDate() + " by quantity " + quantity);
+                    availabilityService.decrementAvailability(
+                        itemId, 
+                        item.getItemType().toLowerCase(), 
+                        item.getBookingDate(), 
+                        quantity
+                    );
+                    // Skip general stock decrement for items with booking dates
+                    continue;
+                }
+                
+                // Decrement general stock only for items without booking dates
+                System.out.println("Decrementing general stock for item " + item.getItemName() + " by quantity " + quantity);
+                
                 if ("THEME".equals(itemType)) {
                     Theme theme = themeService.getThemeById(itemId);
                     if (theme != null) {
                         int currentQuantity = theme.getQuantity();
-                        theme.setQuantity(Math.max(0, currentQuantity - quantity));
+                        int newQuantity = Math.max(0, currentQuantity - quantity);
+                        System.out.println("Theme " + item.getItemName() + " stock: " + currentQuantity + " -> " + newQuantity);
+                        theme.setQuantity(newQuantity);
                         theme.setUpdatedAt(LocalDateTime.now());
                         themeService.saveTheme(theme);
                     }
@@ -371,7 +613,9 @@ public class OrderService {
                     if (inventoryOpt.isPresent()) {
                         Inventory inventory = inventoryOpt.get();
                         int currentQuantity = inventory.getQuantity();
-                        inventory.setQuantity(Math.max(0, currentQuantity - quantity));
+                        int newQuantity = Math.max(0, currentQuantity - quantity);
+                        System.out.println("Inventory " + item.getItemName() + " stock: " + currentQuantity + " -> " + newQuantity);
+                        inventory.setQuantity(newQuantity);
                         inventory.setUpdatedAt(LocalDateTime.now());
                         inventoryService.updateInventory(inventory);
                     }
@@ -380,19 +624,23 @@ public class OrderService {
                     if (plateOpt.isPresent()) {
                         Plate plate = plateOpt.get();
                         int currentQuantity = plate.getQuantity();
-                        plate.setQuantity(Math.max(0, currentQuantity - quantity));
+                        int newQuantity = Math.max(0, currentQuantity - quantity);
+                        System.out.println("Plate " + item.getItemName() + " stock: " + currentQuantity + " -> " + newQuantity);
+                        plate.setQuantity(newQuantity);
                         plate.setUpdatedAt(LocalDateTime.now());
                         plateService.updatePlate(itemId, plate);
                     }
                 }
             } catch (Exception e) {
                 System.err.println("Error decrementing stock for item " + item.getItemId() + ": " + e.getMessage());
+                e.printStackTrace();
             }
         }
     }
     
     /**
      * Restore stock for all items in a cancelled order
+     * Note: For items with booking dates, only date availability is restored, not general stock
      * @param orderItems the order items
      */
     private void restoreStockForOrderItems(List<OrderItem> orderItems) {
@@ -402,10 +650,30 @@ public class OrderService {
                 String itemId = item.getItemId();
                 int quantity = item.getQuantity();
                 
+                // Restore date availability if booking date is set
+                if (item.getBookingDate() != null) {
+                    System.out.println("Restoring date availability for item " + item.getItemName() + 
+                        " on date " + item.getBookingDate() + " by quantity " + quantity);
+                    availabilityService.incrementAvailability(
+                        itemId, 
+                        item.getItemType().toLowerCase(), 
+                        item.getBookingDate(), 
+                        quantity
+                    );
+                    // Skip general stock restoration for items with booking dates
+                    continue;
+                }
+                
+                // Restore general stock only for items without booking dates
+                System.out.println("Restoring general stock for item " + item.getItemName() + " by quantity " + quantity);
+                
                 if ("THEME".equals(itemType)) {
                     Theme theme = themeService.getThemeById(itemId);
                     if (theme != null) {
-                        theme.setQuantity(theme.getQuantity() + quantity);
+                        int currentQuantity = theme.getQuantity();
+                        int newQuantity = currentQuantity + quantity;
+                        System.out.println("Theme " + item.getItemName() + " stock: " + currentQuantity + " -> " + newQuantity);
+                        theme.setQuantity(newQuantity);
                         theme.setUpdatedAt(LocalDateTime.now());
                         // Use updateTheme to trigger notifications if stock changes from 0 to >0
                         themeService.updateTheme(theme);
@@ -414,7 +682,10 @@ public class OrderService {
                     Optional<Inventory> inventoryOpt = inventoryService.getInventoryById(itemId);
                     if (inventoryOpt.isPresent()) {
                         Inventory inventory = inventoryOpt.get();
-                        inventory.setQuantity(inventory.getQuantity() + quantity);
+                        int currentQuantity = inventory.getQuantity();
+                        int newQuantity = currentQuantity + quantity;
+                        System.out.println("Inventory " + item.getItemName() + " stock: " + currentQuantity + " -> " + newQuantity);
+                        inventory.setQuantity(newQuantity);
                         inventory.setUpdatedAt(LocalDateTime.now());
                         // updateInventory will automatically notify subscribers if stock changes from 0 to >0
                         inventoryService.updateInventory(inventory);
@@ -423,7 +694,10 @@ public class OrderService {
                     Optional<Plate> plateOpt = plateService.getPlateById(itemId);
                     if (plateOpt.isPresent()) {
                         Plate plate = plateOpt.get();
-                        plate.setQuantity(plate.getQuantity() + quantity);
+                        int currentQuantity = plate.getQuantity();
+                        int newQuantity = currentQuantity + quantity;
+                        System.out.println("Plate " + item.getItemName() + " stock: " + currentQuantity + " -> " + newQuantity);
+                        plate.setQuantity(newQuantity);
                         plate.setUpdatedAt(LocalDateTime.now());
                         // updatePlate will automatically notify subscribers if stock changes from 0 to >0
                         plateService.updatePlate(itemId, plate);

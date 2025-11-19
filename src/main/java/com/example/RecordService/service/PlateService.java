@@ -25,7 +25,13 @@ public class PlateService {
     }
 
     public List<Plate> getPlatesByBusinessId(String businessId) {
-        return plateRepository.findByBusinessId(businessId);
+        System.out.println("🔍 PlateService.getPlatesByBusinessId called with businessId: " + businessId);
+        List<Plate> plates = plateRepository.findByBusinessId(businessId);
+        System.out.println("✅ Found " + (plates != null ? plates.size() : 0) + " plates for business: " + businessId);
+        if (plates != null && !plates.isEmpty()) {
+            plates.forEach(p -> System.out.println("   - Plate: " + p.getPlateId() + " - " + p.getDishName()));
+        }
+        return plates != null ? plates : new java.util.ArrayList<>();
     }
 
     public Plate createPlate(Plate plate) {
@@ -58,7 +64,7 @@ public class PlateService {
             plate.setDishType(dishType);
             
             plate.setIsActive(plateDetails.getIsActive());
-            Plate updatedPlate = plateRepository.update(plate);
+            Plate updatedPlate = plateRepository.save(plate);
             
             // If item was out of stock and now has stock, notify subscribers
             if (previousQuantity == 0 && updatedPlate.getQuantity() > 0) {

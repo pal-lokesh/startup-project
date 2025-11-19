@@ -1,6 +1,7 @@
 package com.example.RecordService.model.dto;
 
 import com.example.RecordService.entity.OrderItem;
+import java.time.LocalDate;
 
 public class OrderItemResponse {
     
@@ -14,6 +15,8 @@ public class OrderItemResponse {
     private String businessName;
     private String imageUrl;
     private Double totalPrice;
+    private LocalDate bookingDate;
+    private String selectedDishes; // JSON string storing selected dishes for plates
     
     // Constructors
     public OrderItemResponse() {}
@@ -29,6 +32,8 @@ public class OrderItemResponse {
         this.businessName = orderItem.getBusinessName();
         this.imageUrl = orderItem.getImageUrl();
         this.totalPrice = orderItem.getTotalPrice();
+        this.bookingDate = orderItem.getBookingDate();
+        this.selectedDishes = orderItem.getSelectedDishes();
     }
     
     // Getters and Setters
@@ -110,5 +115,21 @@ public class OrderItemResponse {
     
     public void setTotalPrice(Double totalPrice) {
         this.totalPrice = totalPrice;
+    }
+    
+    public LocalDate getBookingDate() {
+        return bookingDate;
+    }
+    
+    public void setBookingDate(LocalDate bookingDate) {
+        this.bookingDate = bookingDate;
+    }
+    
+    public String getSelectedDishes() {
+        return selectedDishes;
+    }
+    
+    public void setSelectedDishes(String selectedDishes) {
+        this.selectedDishes = selectedDishes;
     }
 }

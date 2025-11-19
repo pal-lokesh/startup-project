@@ -38,6 +38,12 @@ public class OrderItem {
     @Column(name = "image_url")
     private String imageUrl;
     
+    @Column(name = "booking_date")
+    private java.time.LocalDate bookingDate; // Date for which the item is booked
+    
+    @Column(name = "selected_dishes", columnDefinition = "TEXT")
+    private String selectedDishes; // JSON string storing selected dishes for plates
+    
     // Constructors
     public OrderItem() {}
     
@@ -51,6 +57,13 @@ public class OrderItem {
         this.itemType = itemType;
         this.businessId = businessId;
         this.businessName = businessName;
+    }
+    
+    public OrderItem(Order order, String itemId, String itemName, Double itemPrice, 
+                    Integer quantity, String itemType, String businessId, String businessName,
+                    java.time.LocalDate bookingDate) {
+        this(order, itemId, itemName, itemPrice, quantity, itemType, businessId, businessName);
+        this.bookingDate = bookingDate;
     }
     
     // Getters and Setters
@@ -132,6 +145,22 @@ public class OrderItem {
     
     public void setImageUrl(String imageUrl) {
         this.imageUrl = imageUrl;
+    }
+    
+    public java.time.LocalDate getBookingDate() {
+        return bookingDate;
+    }
+    
+    public void setBookingDate(java.time.LocalDate bookingDate) {
+        this.bookingDate = bookingDate;
+    }
+    
+    public String getSelectedDishes() {
+        return selectedDishes;
+    }
+    
+    public void setSelectedDishes(String selectedDishes) {
+        this.selectedDishes = selectedDishes;
     }
     
     // Helper method to calculate total price for this item

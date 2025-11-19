@@ -1,6 +1,7 @@
 package com.example.RecordService.model.dto;
 
 import com.example.RecordService.entity.ClientNotification;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.time.LocalDateTime;
 
@@ -66,6 +67,7 @@ public class ClientNotificationResponse {
     public void setNotificationType(ClientNotification.NotificationType notificationType) { this.notificationType = notificationType; }
     public String getMessage() { return message; }
     public void setMessage(String message) { this.message = message; }
+    @JsonProperty("isRead")
     public boolean isRead() { return isRead; }
     public void setRead(boolean read) { isRead = read; }
     public LocalDateTime getCreatedAt() { return createdAt; }

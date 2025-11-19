@@ -9,9 +9,14 @@ import com.example.RecordService.repository.BusinessRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.jdbc.core.JdbcTemplate;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -24,6 +29,12 @@ public class NotificationService {
     
     @Autowired
     private BusinessRepository businessRepository;
+    
+    @PersistenceContext
+    private EntityManager entityManager;
+    
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
     
     /**
      * Create a new order notification for vendors
@@ -43,9 +54,10 @@ public class NotificationService {
                 Business business = businessRepository.findByBusinessId(businessId);
                 if (business != null) {
                     // Create notification message
+                    String itemSummary = getOrderItemSummary(order);
                     String message = String.format(
-                        "New order #%d from %s for ₹%.2f. Delivery: %s",
-                        order.getOrderId(),
+                        "New %s order from %s for ₹%.2f. Delivery: %s",
+                        itemSummary,
                         order.getCustomerName(),
                         order.getTotalAmount(),
                         order.getDeliveryDate()
@@ -148,16 +160,23 @@ public class NotificationService {
      * @param notificationId the notification ID
      * @return true if successful, false otherwise
      */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public boolean markAsRead(Long notificationId) {
-        Optional<Notification> notificationOpt = notificationRepository.findById(notificationId);
-        if (notificationOpt.isPresent()) {
-            Notification notification = notificationOpt.get();
-            notification.setStatus(Notification.NotificationStatus.READ);
-            notification.setReadAt(LocalDateTime.now());
-            notificationRepository.save(notification);
-            return true;
+        try {
+            // Use JDBC for direct database update to bypass JPA caching issues
+            String sql = "UPDATE notifications SET status = 'READ', read_at = ? WHERE notification_id = ?";
+            int updated = jdbcTemplate.update(sql, LocalDateTime.now(), notificationId);
+            
+            if (updated > 0) {
+                // Clear entity manager cache to ensure fresh data on next fetch
+                entityManager.clear();
+                return true;
+            }
+            return false;
+        } catch (Exception e) {
+            System.err.println("Error marking notification as read: " + e.getMessage());
+            return false;
         }
-        return false;
     }
     
     /**
@@ -236,29 +255,67 @@ public class NotificationService {
         switch (notificationType) {
             case ORDER_UPDATED:
                 return String.format(
-                    "Order #%d status updated to %s for %s",
-                    order.getOrderId(),
+                    "%s status updated to %s for %s",
+                    getOrderItemSummary(order),
                     order.getStatus().toString(),
                     order.getCustomerName()
                 );
             case ORDER_CANCELLED:
                 return String.format(
-                    "Order #%d has been cancelled by %s",
-                    order.getOrderId(),
+                    "%s order has been cancelled by %s",
+                    getOrderItemSummary(order),
                     order.getCustomerName()
                 );
             case ORDER_DELIVERED:
                 return String.format(
-                    "Order #%d has been delivered to %s",
-                    order.getOrderId(),
+                    "%s order has been delivered to %s",
+                    getOrderItemSummary(order),
                     order.getCustomerName()
                 );
             default:
                 return String.format(
-                    "Order #%d has been updated for %s",
-                    order.getOrderId(),
+                    "%s order has been updated for %s",
+                    getOrderItemSummary(order),
                     order.getCustomerName()
                 );
         }
+    }
+
+    /**
+     * Build a human-friendly summary of the primary items in an order.
+     */
+    private String getOrderItemSummary(Order order) {
+        if (order == null || order.getOrderItems() == null || order.getOrderItems().isEmpty()) {
+            return "order";
+        }
+
+        List<com.example.RecordService.entity.OrderItem> items = order.getOrderItems().stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+
+        if (items.isEmpty()) {
+            return "order";
+        }
+
+        String primaryName = Optional.ofNullable(items.get(0).getItemName())
+                .map(String::trim)
+                .filter(name -> !name.isEmpty())
+                .orElse("order");
+
+        long additionalCount = items.stream()
+                .skip(1)
+                .filter(Objects::nonNull)
+                .count();
+
+        if (additionalCount <= 0) {
+            return primaryName;
+        }
+
+        return String.format(
+                "%s + %d more item%s",
+                primaryName,
+                additionalCount,
+                additionalCount > 1 ? "s" : ""
+        );
     }
 }

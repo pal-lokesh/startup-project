@@ -7,7 +7,6 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
@@ -17,9 +16,13 @@ public interface ClientNotificationRepository extends JpaRepository<ClientNotifi
 
     long countByClientPhoneAndIsReadFalse(String clientPhone);
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE ClientNotification n SET n.isRead = true WHERE n.clientPhone = :clientPhone AND n.isRead = false")
     void markAllAsReadByClientPhone(@Param("clientPhone") String clientPhone);
+    
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = "UPDATE client_notifications SET is_read = true WHERE notification_id = :notificationId", nativeQuery = true)
+    int markNotificationAsReadById(@Param("notificationId") Long notificationId);
 
     List<ClientNotification> findByClientPhoneAndNotificationTypeOrderByCreatedAtDesc(String clientPhone, ClientNotification.NotificationType notificationType);
 

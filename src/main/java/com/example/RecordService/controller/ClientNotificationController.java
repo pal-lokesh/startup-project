@@ -119,4 +119,19 @@ public class ClientNotificationController {
                     .body("Failed to retrieve recent notifications: " + e.getMessage());
         }
     }
+
+    /**
+     * Get all notifications with unread count for a specific client (optimized single call)
+     * @param clientPhone the phone number of the client
+     * @return notifications and unread count
+     */
+    @GetMapping("/client/{clientPhone}/with-count")
+    public ResponseEntity<?> getNotificationsWithCount(@PathVariable String clientPhone) {
+        try {
+            return ResponseEntity.ok(clientNotificationService.getNotificationsWithCount(clientPhone));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to retrieve notifications: " + e.getMessage());
+        }
+    }
 }

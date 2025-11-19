@@ -31,6 +31,7 @@ public class StockNotificationController {
             String itemType = request.get("itemType");
             String itemName = request.get("itemName");
             String businessId = request.get("businessId");
+            String requestedDate = request.get("requestedDate"); // Optional: specific date for date-wise availability
             
             if (userId == null || itemId == null || itemType == null || itemName == null || businessId == null) {
                 return ResponseEntity.badRequest()
@@ -38,7 +39,7 @@ public class StockNotificationController {
             }
             
             StockNotification notification = stockNotificationService.subscribeForStockNotification(
-                    userId, itemId, itemType, itemName, businessId);
+                    userId, itemId, itemType, itemName, businessId, requestedDate);
             
             return ResponseEntity.status(HttpStatus.CREATED).body(notification);
         } catch (Exception e) {
@@ -81,9 +82,10 @@ public class StockNotificationController {
     @GetMapping("/check")
     public ResponseEntity<?> checkSubscription(@RequestParam String userId, 
                                               @RequestParam String itemId, 
-                                              @RequestParam String itemType) {
+                                              @RequestParam String itemType,
+                                              @RequestParam(required = false) String requestedDate) {
         try {
-            boolean isSubscribed = stockNotificationService.isSubscribed(userId, itemId, itemType);
+            boolean isSubscribed = stockNotificationService.isSubscribed(userId, itemId, itemType, requestedDate);
             return ResponseEntity.ok(Map.of("subscribed", isSubscribed));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

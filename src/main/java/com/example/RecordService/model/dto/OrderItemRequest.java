@@ -1,5 +1,8 @@
 package com.example.RecordService.model.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+import java.time.LocalDate;
+
 public class OrderItemRequest {
     
     private String itemId;
@@ -10,6 +13,11 @@ public class OrderItemRequest {
     private String businessId;
     private String businessName;
     private String imageUrl;
+    
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    private LocalDate bookingDate; // Date for which the item is booked
+    
+    private String selectedDishes; // JSON string storing selected dishes for plates
     
     // Constructors
     public OrderItemRequest() {}
@@ -89,5 +97,21 @@ public class OrderItemRequest {
     
     public void setImageUrl(String imageUrl) {
         this.imageUrl = imageUrl;
+    }
+    
+    public LocalDate getBookingDate() {
+        return bookingDate;
+    }
+    
+    public void setBookingDate(LocalDate bookingDate) {
+        this.bookingDate = bookingDate;
+    }
+    
+    public String getSelectedDishes() {
+        return selectedDishes;
+    }
+    
+    public void setSelectedDishes(String selectedDishes) {
+        this.selectedDishes = selectedDishes;
     }
 }

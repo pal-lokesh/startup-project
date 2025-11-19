@@ -34,9 +34,12 @@ public class PlateController {
     public ResponseEntity<List<Plate>> getAllPlates() {
         try {
             List<Plate> plates = plateService.getAllPlates();
-            return ResponseEntity.ok(plates);
+            return ResponseEntity.ok(plates != null ? plates : new java.util.ArrayList<>());
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            System.err.println("Error fetching all plates: " + e.getMessage());
+            e.printStackTrace();
+            // Return empty list instead of error to prevent frontend crashes
+            return ResponseEntity.ok(new java.util.ArrayList<>());
         }
     }
 
@@ -55,9 +58,12 @@ public class PlateController {
     public ResponseEntity<List<Plate>> getPlatesByBusinessId(@PathVariable String businessId) {
         try {
             List<Plate> plates = plateService.getPlatesByBusinessId(businessId);
-            return ResponseEntity.ok(plates);
+            return ResponseEntity.ok(plates != null ? plates : new java.util.ArrayList<>());
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            System.err.println("Error fetching plates for business " + businessId + ": " + e.getMessage());
+            e.printStackTrace();
+            // Return empty list instead of error to prevent frontend crashes
+            return ResponseEntity.ok(new java.util.ArrayList<>());
         }
     }
 

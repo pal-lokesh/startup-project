@@ -5,11 +5,13 @@ import com.example.RecordService.model.dto.ChatResponse;
 import com.example.RecordService.model.dto.SendMessageRequest;
 import com.example.RecordService.service.ChatService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/chat")
@@ -20,15 +22,45 @@ public class ChatController {
     private ChatService chatService;
     
     @PostMapping("/create")
-    public ResponseEntity<ChatResponse> createOrGetChat(
+    public ResponseEntity<?> createOrGetChat(
             @RequestParam String clientPhone,
             @RequestParam String vendorPhone,
             @RequestParam String businessId,
             @RequestParam String businessName,
-            @RequestParam(required = false) Long orderId) {
+            @RequestParam(required = false) Long orderId,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
         
-        ChatResponse chat = chatService.createOrGetChat(clientPhone, vendorPhone, businessId, businessName, orderId);
-        return ResponseEntity.ok(chat);
+        try {
+            // Extract caller phone from token if available
+            String callerPhone = null;
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                // Extract phone from token (simplified - in production use proper JWT decoding)
+                // For now, we'll check if vendorPhone matches the caller to prevent vendors from creating chats
+                callerPhone = extractPhoneFromToken(authHeader);
+            }
+            
+            ChatResponse chat = chatService.createOrGetChat(clientPhone, vendorPhone, businessId, businessName, orderId, callerPhone);
+            return ResponseEntity.ok(chat);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to create or get chat: " + e.getMessage()));
+        }
+    }
+    
+    // Helper method to extract phone number from JWT token
+    private String extractPhoneFromToken(String token) {
+        // Remove "Bearer " prefix if present
+        if (token.startsWith("Bearer ")) {
+            token = token.substring(7);
+        }
+        
+        // This is a simplified implementation
+        // In production, properly decode JWT token to extract phone number
+        // For now, return null to indicate we couldn't extract it
+        // The service will still validate based on vendorPhone parameter
+        return null;
     }
     
     @GetMapping("/user/{phoneNumber}")

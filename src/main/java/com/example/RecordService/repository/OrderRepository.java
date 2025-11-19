@@ -64,4 +64,19 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
      * @return the order if found
      */
     Optional<Order> findByOrderId(Long orderId);
+    
+    /**
+     * Count total booked quantity for an item on a specific date from confirmed orders
+     * @param itemId the item ID
+     * @param itemType the item type
+     * @param bookingDate the booking date
+     * @return total booked quantity
+     */
+    @Query("SELECT COALESCE(SUM(oi.quantity), 0) FROM Order o JOIN o.orderItems oi " +
+           "WHERE oi.itemId = :itemId AND oi.itemType = :itemType AND oi.bookingDate = :bookingDate " +
+           "AND o.status IN ('CONFIRMED', 'PREPARING', 'READY', 'SHIPPED')")
+    Integer countBookedQuantityForItemAndDate(
+        @Param("itemId") String itemId,
+        @Param("itemType") String itemType,
+        @Param("bookingDate") java.time.LocalDate bookingDate);
 }

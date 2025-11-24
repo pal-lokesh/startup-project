@@ -65,6 +65,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/users/count").permitAll()
                 .requestMatchers("/api/businesses/count").permitAll()
                 .requestMatchers("/api/images/**").permitAll()
+                .requestMatchers("/api/files/**").authenticated()
                 .requestMatchers("/uploads/**").permitAll()
                 .requestMatchers("/api/themes/count").permitAll()
                 .requestMatchers("/api/vendors/count").permitAll()
